@@ -52,7 +52,8 @@ Responda apenas com um array JSON no formato [{"id": "...", "gancho": "..."}], u
     });
 
     if (!resposta.ok) {
-      throw new Error(`Gemini respondeu ${resposta.status}`);
+      const detalhe = await resposta.text();
+      throw new Error(`Gemini respondeu ${resposta.status} usando o modelo ${MODELO}. ${detalhe.slice(0, 300)}`);
     }
 
     const dados = await resposta.json();
