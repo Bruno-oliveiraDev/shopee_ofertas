@@ -1,0 +1,14 @@
+{
+  "name": "shopee-ofertas-telegram",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Coleta ofertas da Open API de Afiliados da Shopee e posta no grupo do Telegram. Sem dependencias.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "coletar": "node scripts/coletar.js",
+    "disparar": "node scripts/disparar.js"
+  }
+}

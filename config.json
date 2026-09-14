@@ -1,0 +1,26 @@
+{
+  "endpoint": "https://open-api.affiliate.shopee.com.br/graphql",
+  "keywords": [
+    "fone bluetooth",
+    "air fryer",
+    "smartwatch",
+    "organizador de cozinha",
+    "kit maquiagem",
+    "luminaria led"
+  ],
+  "limitePorBusca": 20,
+  "listType": 1,
+  "sortType": 5,
+  "filtros": {
+    "comissaoMinima": 0.08,
+    "descontoMinimo": 15,
+    "vendasMinimas": 100,
+    "precoMinimo": 15,
+    "precoMaximo": 500
+  },
+  "disparo": {
+    "ofertasPorRodada": 2,
+    "intervaloSegundos": 5,
+    "validadeEmDias": 3
+  }
+}

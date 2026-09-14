@@ -1,0 +1,101 @@
+import { createHash } from 'node:crypto';
+
+const APP_ID = process.env.SHOPEE_APP_ID;
+const APP_SECRET = process.env.SHOPEE_APP_SECRET;
+
+const CAMPOS = [
+  'itemId',
+  'shopId',
+  'productName',
+  'productLink',
+  'offerLink',
+  'imageUrl',
+  'priceMin',
+  'priceMax',
+  'priceDiscountRate',
+  'sales',
+  'ratingStar',
+  'commissionRate',
+  'commission',
+  'shopName',
+  'shopType',
+].join(' ');
+
+/**
+ * A Shopee assina cada requisicao com SHA256(appId + timestamp + payload + secret).
+ * O payload precisa ser exatamente a string enviada no corpo, byte a byte.
+ */
+function assinar(payload) {
+  const timestamp = Math.floor(Date.now() / 1000);
+  const signature = createHash('sha256')
+    .update(APP_ID + timestamp + payload + APP_SECRET)
+    .digest('hex');
+
+  return `SHA256 Credential=${APP_ID}, Timestamp=${timestamp}, Signature=${signature}`;
+}
+
+export async function buscarOfertas(cfg, keyword) {
+  const termo = keyword.replace(/["\\]/g, '');
+  const query =
+    `{productOfferV2(keyword:"${termo}",listType:${cfg.listType},sortType:${cfg.sortType},` +
+    `page:1,limit:${cfg.limitePorBusca}){nodes{${CAMPOS}} pageInfo{page limit hasNextPage}}}`;
+
+  const payload = JSON.stringify({ query });
+
+  const resposta = await fetch(cfg.endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: assinar(payload),
+    },
+    body: payload,
+  });
+
+  const dados = await resposta.json().catch(() => null);
+
+  if (!resposta.ok || !dados) {
+    throw new Error(`Shopee respondeu ${resposta.status} para "${keyword}"`);
+  }
+
+  if (Array.isArray(dados.errors) && dados.errors.length) {
+    throw new Error(`Shopee recusou "${keyword}": ${JSON.stringify(dados.errors)}`);
+  }
+
+  return dados?.data?.productOfferV2?.nodes ?? [];
+}
+
+/** Converte o retorno cru da API na linha que vai para o banco. */
+export function normalizar(produto, keyword) {
+  const preco = parseFloat(produto.priceMin || '0');
+  const desconto = Number(produto.priceDiscountRate || 0);
+  const comissao = parseFloat(produto.commissionRate || '0');
+  const vendas = Number(produto.sales || 0);
+
+  return {
+    item_id: String(produto.itemId),
+    shop_id: String(produto.shopId || ''),
+    nome: String(produto.productName || '').slice(0, 200),
+    preco,
+    preco_de: desconto > 0 && desconto < 100 ? Number((preco / (1 - desconto / 100)).toFixed(2)) : null,
+    desconto,
+    comissao,
+    vendas,
+    nota: produto.ratingStar ? Number(parseFloat(produto.ratingStar).toFixed(1)) : null,
+    loja: produto.shopName || null,
+    imagem: produto.imageUrl || null,
+    link: produto.offerLink,
+    keyword,
+    score: Number((comissao * 100 + desconto / 10 + Math.min(vendas, 5000) / 1000).toFixed(3)),
+    status: 'pendente',
+  };
+}
+
+export function passaNoFiltro(linha, filtros) {
+  if (!linha.link || !linha.preco) return false;
+  if (linha.comissao < filtros.comissaoMinima) return false;
+  if (linha.desconto < filtros.descontoMinimo) return false;
+  if (linha.vendas < filtros.vendasMinimas) return false;
+  if (linha.preco < filtros.precoMinimo) return false;
+  if (linha.preco > filtros.precoMaximo) return false;
+  return true;
+}
