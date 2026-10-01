@@ -27,14 +27,23 @@ Ficaram de fora de propósito: cadeirinha de carro, bebê conforto e andador. Ca
 
 A IA que escreve o gancho está proibida de prometer segurança, benefício pra saúde ou desenvolvimento, e de inventar faixa etária.
 
+## Como cada mensagem é escolhida
+
+- **Gancho:** a IA (Gemini) escreve no tom de mãe indicando um achado. Se ela estiver fora do ar, o disparo usa uma frase escrita à mão da categoria (`src/frases.js`), sem repetir as últimas 15.
+- **Ordem:** desconto, vendas e nota pesam junto com a comissão. Nunca saem duas ofertas da mesma categoria das 2 últimas. À noite (18h em diante) brinquedo e roupa ganham peso; de dia, enxoval e rotina (`src/selecao.js`).
+- **Campanha:** `config.json > campanha` define período, categorias, selo e a hora da lista "Top 5 presentes" (rodada das :05). Fora do período, nada muda. Para a próxima data (Black Friday, Natal), basta trocar esse bloco.
+
 ## Estrutura
 
 ```
-config.json                     keywords e filtros de curadoria
+config.json                     buscas por categoria, filtros e campanha
 schema.sql                      tabela e view, rodar uma vez no Supabase
 src/shopee.js                   assinatura SHA256 e consulta GraphQL
 src/db.js                       leitura e escrita no Supabase via REST
 src/telegram.js                 montagem da mensagem e envio
+src/copy.js                     gancho pela IA, em lotes, com modelos reserva
+src/frases.js                   frases por categoria quando a IA falha
+src/selecao.js                  escolhe a próxima oferta (categoria, turno, campanha)
 scripts/coletar.js              abastece a fila
 scripts/disparar.js             posta as proximas da fila
 .github/workflows/              os tres agendamentos

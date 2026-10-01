@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { pontuar } from './selecao.js';
 
 const APP_ID = process.env.SHOPEE_APP_ID;
 const APP_SECRET = process.env.SHOPEE_APP_SECRET;
@@ -71,7 +72,7 @@ export function normalizar(produto, keyword) {
   const comissao = parseFloat(produto.commissionRate || '0');
   const vendas = Number(produto.sales || 0);
 
-  return {
+  const linha = {
     item_id: String(produto.itemId),
     shop_id: String(produto.shopId || ''),
     nome: String(produto.productName || '').slice(0, 200),
@@ -85,9 +86,12 @@ export function normalizar(produto, keyword) {
     imagem: produto.imageUrl || null,
     link: produto.offerLink,
     keyword,
-    score: Number((comissao * 100 + desconto / 10 + Math.min(vendas, 5000) / 1000).toFixed(3)),
     status: 'pendente',
   };
+
+  // mesmo peso que a escolha do disparo usa, pra fila ja vir na ordem certa
+  linha.score = Number(pontuar(linha).toFixed(3));
+  return linha;
 }
 
 /** Minusculo e sem acento, pra comparar "Erótico" com "erotico". */

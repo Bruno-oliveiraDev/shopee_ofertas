@@ -33,8 +33,16 @@ export function salvarOfertas(linhas) {
   });
 }
 
-export function proximasDaFila(quantidade) {
+/** Um bom punhado da fila; a escolha final e feita em selecao.js. */
+export function candidatasDaFila(quantidade = 200) {
   return chamar(`ofertas?status=eq.pendente&order=score.desc&limit=${quantidade}`);
+}
+
+/** Ultimas enviadas, mais nova primeiro, pra nao repetir categoria nem frase. */
+export function ultimasEnviadas(quantidade = 15) {
+  return chamar(
+    `ofertas?status=eq.enviada&enviada_em=not.is.null&order=enviada_em.desc&limit=${quantidade}&select=keyword,gancho`
+  );
 }
 
 export function salvarGancho(itemId, gancho) {

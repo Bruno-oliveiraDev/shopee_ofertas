@@ -2,15 +2,17 @@ import { readFile } from 'node:fs/promises';
 import { buscarOfertas, normalizar, passaNoFiltro } from '../src/shopee.js';
 import { salvarOfertas, salvarGancho, expirarAntigas } from '../src/db.js';
 import { gerarGanchos } from '../src/copy.js';
+import { todasKeywords } from '../src/selecao.js';
 
 const cfg = JSON.parse(await readFile(new URL('../config.json', import.meta.url)));
 
 const pausa = (ms) => new Promise((r) => setTimeout(r, ms));
 
+const keywords = todasKeywords(cfg);
 let candidatas = [];
 let falhas = 0;
 
-for (const keyword of cfg.keywords) {
+for (const keyword of keywords) {
   try {
     const produtos = await buscarOfertas(cfg, keyword);
     const aprovadas = produtos
@@ -27,7 +29,7 @@ for (const keyword of cfg.keywords) {
   await pausa(1500); // respeita o rate limit da Shopee
 }
 
-if (falhas === cfg.keywords.length) {
+if (falhas === keywords.length) {
   throw new Error('Todas as buscas falharam. Verifique credenciais e assinatura.');
 }
 

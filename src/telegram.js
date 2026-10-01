@@ -20,6 +20,9 @@ export function montarMensagem(oferta) {
     linhas.push('');
   }
 
+  // selo da campanha (ex.: Dia das Criancas), so nas categorias dela
+  if (oferta.selo) linhas.push(escapar(oferta.selo));
+
   linhas.push(`🧸 <b>${nome}</b>`);
 
   const off = oferta.desconto > 0 ? ` (${oferta.desconto}% OFF)` : '';
@@ -35,6 +38,32 @@ export function montarMensagem(oferta) {
   linhas.push(`👉 <a href="${oferta.link}">Quero ver na Shopee</a>`);
 
   return linhas.join('\n').slice(0, 1000);
+}
+
+/** Lista da noite na campanha: varios presentes numa mensagem so. */
+export function montarTopDoDia(ofertas, campanha) {
+  const linhas = [
+    `🎁 <b>Top ${ofertas.length} presentes de ${escapar(campanha.nome)} de hoje</b>`,
+    '',
+    'Ainda sem ideia de presente? Separei os achados mais bem avaliados do dia 👇',
+    '',
+  ];
+
+  ofertas.forEach((o, i) => {
+    const off = o.desconto > 0 ? ` (${o.desconto}% OFF)` : '';
+    linhas.push(`${i + 1}. <a href="${o.link}">${escapar(o.nome.slice(0, 60))}</a>`);
+    linhas.push(`    💸 R$ ${brl(o.preco)}${off}`);
+  });
+
+  return linhas.join('\n');
+}
+
+export function postarTexto(texto) {
+  return enviar('sendMessage', {
+    text: texto,
+    parse_mode: 'HTML',
+    link_preview_options: { is_disabled: true },
+  });
 }
 
 async function enviar(metodo, corpo) {
