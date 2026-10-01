@@ -90,8 +90,21 @@ export function normalizar(produto, keyword) {
   };
 }
 
+/** Minusculo e sem acento, pra comparar "Erótico" com "erotico". */
+const simplificar = (texto) =>
+  String(texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
 export function passaNoFiltro(linha, filtros) {
   if (!linha.link || !linha.preco) return false;
+
+  // grupo de pais: qualquer termo bloqueado no nome derruba a oferta
+  const nome = simplificar(linha.nome);
+  const bloqueadas = filtros.palavrasBloqueadas || [];
+  if (bloqueadas.some((p) => nome.includes(simplificar(p)))) return false;
+
+  // produto infantil sem nota ou com nota baixa nao entra
+  if (filtros.notaMinima && !(linha.nota >= filtros.notaMinima)) return false;
+
   if (linha.comissao < filtros.comissaoMinima) return false;
   if (linha.desconto < filtros.descontoMinimo) return false;
   if (linha.vendas < filtros.vendasMinimas) return false;

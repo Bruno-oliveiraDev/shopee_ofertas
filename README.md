@@ -6,6 +6,27 @@ Coleta ofertas na Open API de Afiliados da Shopee, guarda numa fila no Supabase 
 coleta (3x ao dia)  ->  Supabase (fila)  ->  disparo (de hora em hora)  ->  Telegram
 ```
 
+## Vindo da versão casa e cozinha
+
+Se o Supabase é o mesmo da versão anterior, a fila ainda tem ofertas de cozinha pendentes. Rode isso uma vez no SQL Editor antes do próximo disparo, senão elas saem no grupo infantil:
+
+```sql
+update public.ofertas set status = expirada where status = pendente;
+```
+
+O histórico continua na tabela e a view `desempenho_keywords` segue funcionando, só com as palavras novas aparecendo dali pra frente.
+
+## Curadoria do grupo infantil
+
+O `config.json` tem duas travas a mais que a versão de casa:
+
+- `notaMinima`: produto sem avaliação ou abaixo de 4,6 estrelas não entra. Com bebê, a família confia no que você indica.
+- `palavrasBloqueadas`: qualquer termo dessa lista no nome do produto derruba a oferta. Busca por brinquedo na Shopee às vezes traz produto adulto, e um post desses acaba com o grupo.
+
+Ficaram de fora de propósito: cadeirinha de carro, bebê conforto e andador. Cadeirinha precisa de selo do Inmetro, e boa parte do que é vendido em marketplace não tem. Andador é desaconselhado pela Sociedade Brasileira de Pediatria. Indicar esses produtos num grupo de pais é risco pra criança e pra reputação do grupo.
+
+A IA que escreve o gancho está proibida de prometer segurança, benefício pra saúde ou desenvolvimento, e de inventar faixa etária.
+
 ## Estrutura
 
 ```

@@ -15,10 +15,10 @@ export function montarMensagem(oferta) {
   const nome = escapar(oferta.nome.slice(0, 90));
 
   if (oferta.gancho) {
-    linhas.push(`🔥 <b>${escapar(oferta.gancho)}</b>`);
+    linhas.push(`🧸 <b>${escapar(oferta.gancho)}</b>`);
     linhas.push(`<i>${nome}</i>`);
   } else {
-    linhas.push(`🔥 <b>${nome}</b>`);
+    linhas.push(`🧸 <b>${nome}</b>`);
   }
 
   linhas.push('');
@@ -34,7 +34,7 @@ export function montarMensagem(oferta) {
   if (oferta.loja) linhas.push(`🏬 ${escapar(oferta.loja)}`);
 
   linhas.push('');
-  linhas.push(`🛒 <a href="${oferta.link}">Pegar a oferta na Shopee</a>`);
+  linhas.push(`🛒 <a href="${oferta.link}">Ver a oferta na Shopee</a>`);
 
   return linhas.join('\n').slice(0, 1000);
 }
