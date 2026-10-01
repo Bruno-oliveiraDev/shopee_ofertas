@@ -14,27 +14,25 @@ export function montarMensagem(oferta) {
 
   const nome = escapar(oferta.nome.slice(0, 90));
 
+  // o gancho abre a mensagem como texto corrido, do jeito que uma mae escreveria pra outra
   if (oferta.gancho) {
-    linhas.push(`🧸 <b>${escapar(oferta.gancho)}</b>`);
-    linhas.push(`<i>${nome}</i>`);
-  } else {
-    linhas.push(`🧸 <b>${nome}</b>`);
+    linhas.push(escapar(oferta.gancho));
+    linhas.push('');
   }
 
-  linhas.push('');
+  linhas.push(`🧸 <b>${nome}</b>`);
 
+  const off = oferta.desconto > 0 ? ` (${oferta.desconto}% OFF)` : '';
   linhas.push(
     oferta.preco_de
-      ? `💸 De <s>R$ ${brl(oferta.preco_de)}</s> por <b>R$ ${brl(oferta.preco)}</b>`
+      ? `💸 De <s>R$ ${brl(oferta.preco_de)}</s> por <b>R$ ${brl(oferta.preco)}</b>${off}`
       : `💸 <b>R$ ${brl(oferta.preco)}</b>`
   );
 
-  if (oferta.desconto > 0) linhas.push(`🏷️ ${oferta.desconto}% de desconto`);
   if (oferta.nota) linhas.push(`⭐ ${oferta.nota} · ${oferta.vendas}+ vendidos`);
-  if (oferta.loja) linhas.push(`🏬 ${escapar(oferta.loja)}`);
 
   linhas.push('');
-  linhas.push(`🛒 <a href="${oferta.link}">Ver a oferta na Shopee</a>`);
+  linhas.push(`👉 <a href="${oferta.link}">Quero ver na Shopee</a>`);
 
   return linhas.join('\n').slice(0, 1000);
 }

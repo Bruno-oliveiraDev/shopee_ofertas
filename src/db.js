@@ -37,6 +37,14 @@ export function proximasDaFila(quantidade) {
   return chamar(`ofertas?status=eq.pendente&order=score.desc&limit=${quantidade}`);
 }
 
+export function salvarGancho(itemId, gancho) {
+  return chamar(`ofertas?item_id=eq.${itemId}`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({ gancho }),
+  });
+}
+
 export function marcarComoEnviada(itemId) {
   return chamar(`ofertas?item_id=eq.${itemId}`, {
     method: 'PATCH',
