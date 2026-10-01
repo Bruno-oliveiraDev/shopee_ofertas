@@ -1,11 +1,15 @@
 const API_KEY = process.env.GEMINI_API_KEY;
 const MODELO = process.env.GEMINI_MODELO || 'gemini-2.5-flash';
 
-const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO}:generateContent`;
+// quando o modelo principal fica sobrecarregado (503), tenta os mais leves, que costumam estar livres
+const MODELOS = [...new Set([MODELO, 'gemini-2.5-flash-lite', 'gemini-2.0-flash'])];
+
+const endpoint = (modelo) => `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`;
 
 // lote pequeno cabe folgado na resposta; o lote unico de antes vinha cortado
 const TAMANHO_LOTE = 20;
 const ESPERAS_MS = [5000, 15000, 40000];
+const ESPERAS_RESERVA_MS = [5000];
 
 const REGRAS = `Voce escreve a chamada de cada produto num grupo de ofertas infantis no Telegram.
 Quem le sao maes, pais, avos e quem esta montando enxoval ou procurando presente.
@@ -30,7 +34,7 @@ Regras:
 const pausa = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** Um pedido ao Gemini para um lote. Lanca erro em qualquer falha. */
-async function pedirLote(lote) {
+async function pedirLote(lote, modelo) {
   const lista = lote.map((o) => ({
     id: o.item_id,
     produto: o.nome.slice(0, 120),
@@ -44,7 +48,7 @@ ${JSON.stringify(lista, null, 2)}
 
 Responda apenas com um array JSON no formato [{"id": "...", "gancho": "..."}], um item para cada produto recebido.`;
 
-  const resposta = await fetch(`${ENDPOINT}?key=${API_KEY}`, {
+  const resposta = await fetch(`${endpoint(modelo)}?key=${API_KEY}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -59,7 +63,7 @@ Responda apenas com um array JSON no formato [{"id": "...", "gancho": "..."}], u
 
   if (!resposta.ok) {
     const detalhe = await resposta.text();
-    throw new Error(`Gemini respondeu ${resposta.status} usando o modelo ${MODELO}. ${detalhe.slice(0, 200)}`);
+    throw new Error(`Gemini respondeu ${resposta.status} usando o modelo ${modelo}. ${detalhe.slice(0, 200)}`);
   }
 
   const dados = await resposta.json();
@@ -78,17 +82,42 @@ Responda apenas com um array JSON no formato [{"id": "...", "gancho": "..."}], u
   return mapa;
 }
 
-/** Tenta de novo quando o Gemini esta sobrecarregado ou responde torto. */
-async function pedirComRetentativa(lote) {
+/** Tenta de novo no mesmo modelo quando o Gemini esta sobrecarregado ou responde torto. */
+async function tentarModelo(lote, modelo, esperas) {
   for (let tentativa = 0; ; tentativa++) {
     try {
-      return await pedirLote(lote);
+      return await pedirLote(lote, modelo);
     } catch (erro) {
-      if (tentativa >= ESPERAS_MS.length) throw erro;
-      console.warn(`IA falhou (tentativa ${tentativa + 1}), tentando de novo. ${erro.message}`);
-      await pausa(ESPERAS_MS[tentativa]);
+      if (tentativa >= esperas.length) throw erro;
+      console.warn(`IA falhou no ${modelo} (tentativa ${tentativa + 1}), tentando de novo. ${erro.message}`);
+      await pausa(esperas[tentativa]);
     }
   }
+}
+
+// modelo que caiu nesta rodada nao e tentado de novo nos proximos lotes,
+// senao a coleta (uns 30 lotes) estoura os 10 minutos do GitHub Actions
+let primeiroModelo = 0;
+
+/** Esgota o modelo principal e depois passa pelos reservas, um de cada vez. */
+async function pedirComRetentativa(lote) {
+  let ultimoErro;
+
+  for (let i = primeiroModelo; i < MODELOS.length; i++) {
+    const modelo = MODELOS[i];
+
+    try {
+      const mapa = await tentarModelo(lote, modelo, i === 0 ? ESPERAS_MS : ESPERAS_RESERVA_MS);
+      if (i > 0) console.log(`Ganchos vieram do modelo reserva ${modelo}`);
+      return mapa;
+    } catch (erro) {
+      ultimoErro = erro;
+      primeiroModelo = Math.min(i + 1, MODELOS.length - 1);
+      if (i < MODELOS.length - 1) console.warn(`Modelo ${modelo} indisponivel, passando para o reserva.`);
+    }
+  }
+
+  throw ultimoErro;
 }
 
 /**
