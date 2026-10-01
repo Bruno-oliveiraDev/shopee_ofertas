@@ -1,8 +1,37 @@
 const API_KEY = process.env.GEMINI_API_KEY;
 const MODELO = process.env.GEMINI_MODELO || 'gemini-2.5-flash';
 
-// quando o modelo principal fica sobrecarregado (503), tenta os mais leves, que costumam estar livres
-const MODELOS = [...new Set([MODELO, 'gemini-2.5-flash-lite', 'gemini-2.0-flash'])];
+// quando o modelo principal fica sobrecarregado (503), tenta outros "flash" que a chave enxerga.
+// Os nomes vem da propria API porque o Google aposenta modelo e nome fixo vira 404.
+const MAX_RESERVAS = 3;
+let MODELOS = [MODELO];
+let reservasCarregadas = false;
+
+async function carregarReservas() {
+  if (reservasCarregadas) return;
+  reservasCarregadas = true;
+
+  try {
+    const resposta = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=${API_KEY}`);
+    if (!resposta.ok) throw new Error(`listagem respondeu ${resposta.status}`);
+
+    const { models = [] } = await resposta.json();
+    const reservas = models
+      .filter((m) => m.supportedGenerationMethods?.includes('generateContent'))
+      .map((m) => m.name.replace(/^models\//, ''))
+      .filter((nome) => /^gemini-[\d.]+-flash/.test(nome))
+      .filter((nome) => !/preview|exp|image|tts|audio|live|thinking/.test(nome))
+      .filter((nome) => nome !== MODELO)
+      // versao mais nova primeiro
+      .sort((a, b) => b.localeCompare(a, 'en', { numeric: true }))
+      .slice(0, MAX_RESERVAS);
+
+    MODELOS = [MODELO, ...reservas];
+    console.log(`Modelos reserva: ${reservas.join(', ') || 'nenhum'}`);
+  } catch (erro) {
+    console.warn(`Nao deu pra listar modelos reserva. ${erro.message}`);
+  }
+}
 
 const endpoint = (modelo) => `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`;
 
@@ -101,6 +130,7 @@ let primeiroModelo = 0;
 
 /** Esgota o modelo principal e depois passa pelos reservas, um de cada vez. */
 async function pedirComRetentativa(lote) {
+  await carregarReservas();
   let ultimoErro;
 
   for (let i = primeiroModelo; i < MODELOS.length; i++) {
