@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { candidatasDaFila, ultimasEnviadas, marcarComoEnviada, marcarComoFalha } from '../src/db.js';
 import { postarOferta, postarTexto, montarTopDoDia } from '../src/telegram.js';
-import { agoraBrasilia, campanhaAtiva, categoriaDe, escolher } from '../src/selecao.js';
+import { agoraBrasilia, campanhaAtiva, categoriaDe, escolher, todasKeywords } from '../src/selecao.js';
 
 const cfg = JSON.parse(await readFile(new URL('../config.json', import.meta.url)));
 
@@ -11,7 +11,8 @@ const TOP_DO_DIA = 5;
 
 const agora = agoraBrasilia();
 const campanha = campanhaAtiva(cfg, agora);
-const candidatas = await candidatasDaFila();
+// oferta de busca que saiu da lista (ex.: lencol de adulto que veio em "jogo de lencol") nao vai pro grupo
+const candidatas = await candidatasDaFila(todasKeywords(cfg));
 
 if (candidatas.length === 0) {
   console.log('Fila vazia. Nada a postar nesta rodada.');

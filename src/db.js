@@ -33,9 +33,14 @@ export function salvarOfertas(linhas) {
   });
 }
 
-/** Um bom punhado da fila; a escolha final e feita em selecao.js. */
-export function candidatasDaFila(quantidade = 200) {
-  return chamar(`ofertas?status=eq.pendente&order=score.desc&limit=${quantidade}`);
+/**
+ * Um bom punhado da fila; a escolha final e feita em selecao.js.
+ * So das buscas que estao na lista hoje: oferta de busca antiga que sobrou na fila nao entra.
+ */
+export function candidatasDaFila(keywords, quantidade = 200) {
+  const lista = keywords.map((k) => `"${k.replace(/"/g, '')}"`).join(',');
+  const filtro = encodeURIComponent(`(${lista})`);
+  return chamar(`ofertas?status=eq.pendente&keyword=in.${filtro}&order=score.desc&limit=${quantidade}`);
 }
 
 /** Ultimas enviadas, mais nova primeiro, pra nao repetir categoria nem frase. */

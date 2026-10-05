@@ -2,8 +2,8 @@
 // alterna categoria, puxa brinquedo pra noite e da destaque a campanha.
 
 const NOITE_A_PARTIR_DAS = 18;
-const CATEGORIAS_NOITE = ['brinquedo', 'brinquedo_bebe', 'roupa_escola'];
-const CATEGORIAS_DIA = ['enxoval', 'sono', 'passeio', 'banho', 'alimentacao', 'casa'];
+const CATEGORIAS_NOITE = ['brinquedo', 'brinquedo_bebe', 'roupa'];
+const CATEGORIAS_DIA = ['higiene', 'alimentacao', 'seguranca'];
 
 /** Todas as buscas, na ordem das categorias. */
 export const todasKeywords = (cfg) => Object.values(cfg.categorias).flat();

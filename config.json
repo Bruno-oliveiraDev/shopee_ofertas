@@ -1,118 +1,44 @@
 {
   "endpoint": "https://open-api.affiliate.shopee.com.br/graphql",
   "categorias": {
-    "enxoval": [
-      "kit enxoval bebe",
-      "body bebe kit",
-      "macacao bebe",
-      "kit pagao bebe",
-      "fralda de pano kit",
-      "manta bebe",
-      "cueiro bebe",
-      "saco de dormir bebe",
-      "toalha de banho bebe capuz",
-      "babador bebe kit",
-      "meia bebe antiderrapante",
-      "touca e luva bebe"
+    "roupa": [
+      "conjunto infantil menino",
+      "conjunto infantil menina",
+      "pijama infantil",
+      "meia bebê antiderrapante",
+      "toalha de banho bebê capuz",
+      "manta bebê",
+      "cueiro bebê",
+      "babador bebê kit",
+      "pano de boca bebê"
     ],
-    "sono": [
-      "jogo de lencol berco",
-      "kit berco",
-      "protetor de berco",
-      "travesseiro anti refluxo",
-      "mosquiteiro berco",
-      "ninho redutor bebe",
-      "baba eletronica",
-      "luz noturna infantil",
-      "mobile berco"
-    ],
-    "passeio": [
-      "trocador portatil",
-      "bolsa maternidade",
-      "mochila maternidade",
-      "organizador de fraldas",
-      "carrinho de bebe",
-      "canguru ergonomico",
-      "sling bebe"
-    ],
-    "banho": [
-      "banheira bebe",
-      "assento de banho bebe",
-      "termometro de banho bebe",
-      "kit higiene bebe",
-      "escova cabelo bebe",
-      "cortador de unha bebe",
-      "aspirador nasal bebe",
-      "lenco umedecido",
+    "higiene": [
+      "lenço umedecido bebê",
       "pomada assadura",
-      "toalha fralda"
+      "escova de dente infantil",
+      "cortador de unha bebê",
+      "repelente adesivo infantil"
     ],
     "alimentacao": [
-      "mamadeira anticolica",
-      "esterilizador mamadeira",
-      "escova de mamadeira",
-      "copo de transicao",
-      "pratinho ventosa bebe",
-      "kit talher bebe silicone",
-      "cadeira de alimentacao",
-      "alimentador bebe silicone",
-      "mordedor bebe",
-      "porta leite em po",
-      "bomba tira leite",
-      "almofada de amamentacao",
-      "protetor de seio"
-    ],
-    "casa": [
-      "protetor de tomada",
-      "trava de gaveta bebe",
-      "protetor de quina",
-      "portao de seguranca bebe",
-      "organizador de brinquedos",
-      "cabideiro infantil",
-      "adesivo de parede infantil",
-      "tapete eva infantil"
-    ],
-    "brinquedo_bebe": [
-      "tapete de atividades bebe",
-      "chocalho bebe",
-      "brinquedo de banho",
-      "livro de pano bebe",
-      "brinquedo sensorial bebe",
-      "cubo de atividades"
+      "kit talher bebê silicone",
+      "mamadeira anticólica",
+      "copo de transição",
+      "chupeta",
+      "prendedor de chupeta"
     ],
     "brinquedo": [
-      "pop it",
       "blocos de montar infantil",
       "brinquedo montessori",
-      "quebra cabeca infantil",
-      "massinha de modelar",
-      "kit pintura infantil",
-      "lousa magica",
-      "jogo de memoria infantil",
-      "boneca bebe reborn",
-      "carrinho de controle remoto",
-      "pista hot wheels",
-      "cozinha infantil brinquedo",
-      "fantasia infantil",
-      "pelucia infantil",
-      "bicicleta infantil",
-      "patinete infantil",
-      "piscina de bolinhas",
-      "barraca infantil",
-      "jogo de tabuleiro infantil",
-      "instrumento musical infantil",
-      "dinossauro brinquedo",
-      "kit medico infantil brinquedo",
-      "kit ferramentas infantil brinquedo"
+      "lousa mágica",
+      "massinha de modelar"
     ],
-    "roupa_escola": [
-      "pijama infantil",
-      "conjunto infantil menina",
-      "conjunto infantil menino",
-      "tenis infantil",
-      "mochila escolar infantil",
-      "lancheira infantil",
-      "garrafinha infantil"
+    "brinquedo_bebe": [
+      "mordedor bebê",
+      "brinquedo sensorial bebê"
+    ],
+    "seguranca": [
+      "protetor de quina",
+      "protetor de tomada"
     ]
   },
   "limitePorBusca": 20,
