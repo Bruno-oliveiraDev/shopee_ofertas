@@ -43,19 +43,11 @@ export function candidatasDaFila(keywords, quantidade = 200) {
   return chamar(`ofertas?status=eq.pendente&keyword=in.${filtro}&order=score.desc&limit=${quantidade}`);
 }
 
-/** Ultimas enviadas, mais nova primeiro, pra nao repetir categoria nem frase. */
+/** Ultimas enviadas, mais nova primeiro, pra nao repetir categoria e nao postar duas vezes no mesmo horario. */
 export function ultimasEnviadas(quantidade = 15) {
   return chamar(
-    `ofertas?status=eq.enviada&enviada_em=not.is.null&order=enviada_em.desc&limit=${quantidade}&select=keyword,gancho`
+    `ofertas?status=eq.enviada&enviada_em=not.is.null&order=enviada_em.desc&limit=${quantidade}&select=keyword,enviada_em`
   );
-}
-
-export function salvarGancho(itemId, gancho) {
-  return chamar(`ofertas?item_id=eq.${itemId}`, {
-    method: 'PATCH',
-    headers: { Prefer: 'return=minimal' },
-    body: JSON.stringify({ gancho }),
-  });
 }
 
 export function marcarComoEnviada(itemId) {

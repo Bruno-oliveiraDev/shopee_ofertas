@@ -2,18 +2,21 @@ name: Disparar no Telegram
 
 on:
   schedule:
-    # 2 por hora (aos :05 e :35), horarios em UTC (BRT = UTC-3)
-    - cron: '5,35 11,12,13,15,16,17,19,20,21,22,23,0 * * *'
+    # 3 plantoes por dia (7h50, 12h50 e 17h50 de Brasilia; cron em UTC).
+    # Cada um fica ligado ~5h e posta sozinho nos horarios de config.disparo.horarios,
+    # porque o agendador do GitHub atrasa e pula execucoes curtas.
+    - cron: '50 10,15,20 * * *'
   workflow_dispatch:
 
 concurrency:
+  # plantao novo espera o anterior terminar; o disparo pula horario que ja teve envio
   group: shopee-disparo
   cancel-in-progress: false
 
 jobs:
   disparar:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 340
 
     steps:
       - uses: actions/checkout@v4
@@ -22,12 +25,10 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Postar as proximas ofertas da fila
-        run: node scripts/disparar.js
+      - name: Plantao de disparos
+        run: node scripts/plantao.js
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODELO: ${{ secrets.GEMINI_MODELO }}

@@ -20,6 +20,14 @@ if (candidatas.length === 0) {
 }
 
 const historico = await ultimasEnviadas();
+
+// duas rodadas no mesmo horario (GitHub atrasou e o plantao seguinte pegou o mesmo :05) postariam em dobro
+const ultimoEnvio = historico[0] ? new Date(historico[0].enviada_em) : null;
+if (ultimoEnvio && Date.now() - ultimoEnvio.getTime() < 20 * 60 * 1000) {
+  console.log(`Ja houve envio as ${ultimoEnvio.toISOString()}, pulando esta rodada.`);
+  process.exit(0);
+}
+
 const categoriasRecentes = historico.map((o) => categoriaDe(cfg, o.keyword));
 
 // Na campanha, a rodada das :05 do horario da noite vira a lista "Top 5 presentes"
