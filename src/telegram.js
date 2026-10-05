@@ -1,3 +1,5 @@
+import { medidaDoProduto } from './medida.js';
+
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
@@ -9,33 +11,49 @@ const escapar = (texto) =>
 const brl = (valor) =>
   Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+/** "(R$ 0,46 / Grama)" quando o nome diz quanto vem; vazio quando nao da pra saber. */
+function precoPorMedida(oferta) {
+  const medida = medidaDoProduto(oferta.nome, {
+    aceitaUnidade: !CATEGORIAS_SEM_UNIDADE.includes(oferta.categoria),
+  });
+  if (!medida) return '';
+
+  const valor = oferta.preco / medida.total;
+  if (valor < 0.01) return '';
+
+  return ` (R$ ${brl(valor)} / ${medida.rotulo})`;
+}
+
+// "Blocos de montar 500 pecas" a R$ 0,08 a peca nao ajuda ninguem a decidir
+const CATEGORIAS_SEM_UNIDADE = ['brinquedo', 'brinquedo_bebe'];
+
+const pct = (valor) => valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// Modelo fixo: so os numeros mudam de uma oferta pra outra
 export function montarMensagem(oferta) {
-  const linhas = [];
+  const linhas = [`<b>${escapar(oferta.nome.slice(0, 90))}</b>`, ''];
 
-  const nome = escapar(oferta.nome.slice(0, 90));
+  const temDesconto = oferta.preco_de && oferta.preco_de > oferta.preco;
 
-  // o gancho abre a mensagem como texto corrido, do jeito que uma mae escreveria pra outra
-  if (oferta.gancho) {
-    linhas.push(escapar(oferta.gancho));
+  if (temDesconto) {
+    linhas.push(`❌ De: R$ ${brl(oferta.preco_de)}`);
     linhas.push('');
   }
 
-  // selo da campanha (ex.: Dia das Criancas), so nas categorias dela
-  if (oferta.selo) linhas.push(escapar(oferta.selo));
+  linhas.push(`🔥 Por: R$ ${brl(oferta.preco)}${precoPorMedida(oferta)}`);
 
-  linhas.push(`🧸 <b>${nome}</b>`);
+  if (temDesconto) {
+    const economia = ((oferta.preco_de - oferta.preco) / oferta.preco_de) * 100;
+    linhas.push(`✅ Economize: ${pct(economia)}%`);
+  }
 
-  const off = oferta.desconto > 0 ? ` (${oferta.desconto}% OFF)` : '';
-  linhas.push(
-    oferta.preco_de
-      ? `💸 De <s>R$ ${brl(oferta.preco_de)}</s> por <b>R$ ${brl(oferta.preco)}</b>${off}`
-      : `💸 <b>R$ ${brl(oferta.preco)}</b>`
-  );
-
-  if (oferta.nota) linhas.push(`⭐ ${oferta.nota} · ${oferta.vendas}+ vendidos`);
+  if (oferta.nota) {
+    linhas.push('');
+    linhas.push(`⭐ ${oferta.nota} · ${oferta.vendas}+ vendidos`);
+  }
 
   linhas.push('');
-  linhas.push(`👉 <a href="${oferta.link}">Quero ver na Shopee</a>`);
+  linhas.push(`<a href="${oferta.link}">Veja mais detalhes</a>`);
 
   return linhas.join('\n').slice(0, 1000);
 }
