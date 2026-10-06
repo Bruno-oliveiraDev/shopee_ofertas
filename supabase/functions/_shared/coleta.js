@@ -1,6 +1,10 @@
 import { buscarOfertas, normalizar, passaNoFiltro } from './shopee.js';
 import { abastecerFila, expirarAntigas } from './db.js';
-import { todasKeywords } from './selecao.js';
+import { todasKeywords, categoriaDe } from './selecao.js';
+
+// fralda de marca paga 2-3% de comissao e quase nao tem desconto: com o filtro geral nao entrava nenhuma.
+// config.filtrosPorCategoria troca so os limites daquela categoria, o resto vem de config.filtros.
+const filtrosDe = (cfg, keyword) => ({ ...cfg.filtros, ...(cfg.filtrosPorCategoria?.[categoriaDe(cfg, keyword)] || {}) });
 
 const pausa = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -29,7 +33,7 @@ export async function coletar(cfg, { parte = 1, de = 1 } = {}) {
         const { produtos, temMais } = await buscarOfertas(cfg, keyword, pagina);
         const ok = produtos
           .map((p) => normalizar(p, keyword))
-          .filter((linha) => passaNoFiltro(linha, cfg.filtros));
+          .filter((linha) => passaNoFiltro(linha, filtrosDe(cfg, keyword)));
 
         retornadas += produtos.length;
         aprovadas += ok.length;

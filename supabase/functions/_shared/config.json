@@ -123,5 +123,11 @@
     "seguranca": 1,
     "brinquedo_bebe": 1,
     "brinquedo": 1
+  },
+  "filtrosPorCategoria": {
+    "fralda": {
+      "comissaoMinima": 0.02,
+      "descontoMinimo": 3
+    }
   }
 }
