@@ -1,10 +1,13 @@
 # Shopee Ofertas no Telegram
 
-Coleta ofertas na Open API de Afiliados da Shopee, guarda numa fila no Supabase e posta no grupo do Telegram. Roda inteiro no GitHub Actions, sem servidor e sem dependência npm.
+Coleta ofertas na Open API de Afiliados da Shopee, guarda numa fila no Supabase e posta no grupo do Telegram. Roda inteiro no Supabase: o `pg_cron` do banco chama duas Edge Functions na hora exata. Sem servidor e sem dependência npm.
 
 ```
-coleta (3x ao dia)  ->  Supabase (fila)  ->  disparo (de hora em hora)  ->  Telegram
+pg_cron 7h/13h/19h  ->  Edge Function coletar   ->  fila (tabela ofertas)
+pg_cron 8h05..21h05 ->  Edge Function disparar  ->  Telegram (14 posts/dia)
 ```
+
+O GitHub Actions ficou só como plano B, com os botões manuais **Coletar ofertas** e **Disparar no Telegram**. O agendador do GitHub atrasava de 3 a 6 horas e pulava execuções: dos disparos de hora em hora, rodavam 3 a 5 por dia.
 
 ## Vindo da versão casa e cozinha
 
@@ -36,18 +39,21 @@ A IA que escreve o gancho está proibida de prometer segurança, benefício pra 
 ## Estrutura
 
 ```
-config.json                     buscas por categoria, filtros e campanha
-schema.sql                      tabela e view, rodar uma vez no Supabase
-src/shopee.js                   assinatura SHA256 e consulta GraphQL
-src/db.js                       leitura e escrita no Supabase via REST
-src/telegram.js                 montagem da mensagem e envio
-src/copy.js                     gancho pela IA, em lotes, com modelos reserva
-src/frases.js                   frases por categoria quando a IA falha
-src/selecao.js                  escolhe a próxima oferta (categoria, turno, campanha)
-scripts/coletar.js              abastece a fila
-scripts/disparar.js             posta as proximas da fila
-.github/workflows/              os tres agendamentos
+supabase/functions/_shared/config.json   buscas por categoria, filtros e campanha
+supabase/functions/_shared/shopee.js     assinatura SHA256 e consulta GraphQL (com paginação)
+supabase/functions/_shared/db.js         leitura e escrita no Supabase via REST
+supabase/functions/_shared/telegram.js   montagem da mensagem e envio
+supabase/functions/_shared/selecao.js    escolhe a próxima oferta (categoria, turno, campanha)
+supabase/functions/_shared/coleta.js     abastece a fila
+supabase/functions/_shared/disparo.js    posta a próxima da fila
+supabase/functions/coletar/              Edge Function chamada pelo pg_cron
+supabase/functions/disparar/             Edge Function chamada pelo pg_cron
+supabase/migrations/                     fila que se renova + agendador
+schema.sql                               tabela original (instalação do zero)
+scripts/                                 os mesmos fluxos rodando em Node (plano B no GitHub)
 ```
+
+O código em `_shared` é um só: roda na Edge Function (Deno) e nos scripts do GitHub (Node).
 
 ## Passo a passo
 
@@ -69,9 +75,37 @@ https://api.telegram.org/bot<SEU_TOKEN>/getUpdates
 
 O ID do grupo vem negativo, no formato `-1001234567890`.
 
-### 3. Repositório
+### 3. Supabase: migrations, segredos e funções
 
-Crie um repositório privado, suba esses arquivos e cadastre em Settings, Secrets and variables, Actions:
+1. No SQL Editor, rode os dois arquivos de `supabase/migrations/`, na ordem.
+2. Ainda no SQL Editor, cadastre no Vault a URL do projeto e um segredo longo e aleatório. Ele é a senha que o agendador usa para chamar as funções:
+
+   ```sql
+   select vault.create_secret('https://SEU-PROJETO.supabase.co', 'projeto_url');
+   select vault.create_secret('UM-SEGREDO-LONGO-ALEATORIO', 'cron_secret');
+   ```
+
+3. Em Edge Functions, Secrets, cadastre `SHOPEE_APP_ID`, `SHOPEE_APP_SECRET`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` e `CRON_SECRET`. O `CRON_SECRET` tem o mesmo valor do `cron_secret` do Vault. `SUPABASE_URL` e a service role a função já recebe sozinha.
+4. Publique as funções `coletar` e `disparar` com verificação de JWT desligada. Quem as protege é o `CRON_SECRET`:
+
+   ```bash
+   supabase functions deploy coletar --no-verify-jwt
+   supabase functions deploy disparar --no-verify-jwt
+   ```
+
+5. Teste sem postar: chame `disparar?teste=1` com o header `x-cron-secret`. Ela devolve a oferta escolhida e a mensagem pronta.
+
+Para acompanhar:
+
+```sql
+select * from saude_fila;                                                   -- pendentes, enviadas nas últimas 24h, último envio
+select * from cron.job_run_details order by start_time desc limit 20;       -- o que o agendador rodou
+select id, status_code, content from net._http_response order by id desc limit 20; -- o que as funções responderam
+```
+
+### 4. Repositório (plano B)
+
+Para os botões manuais do GitHub Actions funcionarem, cadastre em Settings, Secrets and variables, Actions:
 
 | Secret | Onde pegar |
 |---|---|
@@ -82,17 +116,9 @@ Crie um repositório privado, suba esses arquivos e cadastre em Settings, Secret
 | `SUPABASE_URL` | Settings, API |
 | `SUPABASE_SERVICE_KEY` | Settings, API, service_role |
 
-### 4. Primeiro teste
+Na aba Actions, **Coletar ofertas** roda uma coleta completa, e **Disparar no Telegram** roda uma rodada. Por padrão, o disparo manual vem marcado como teste e não posta.
 
-Na aba Actions, rode **Coletar ofertas** no botão `Run workflow`. O log mostra quantas ofertas cada palavra-chave devolveu e quantas passaram no filtro. Confira a tabela `ofertas` no Supabase.
-
-Se vier tudo zerado, afrouxe os filtros no `config.json`. Comece com `comissaoMinima: 0.05` e `vendasMinimas: 50`.
-
-Com a fila abastecida, rode **Disparar no Telegram** na mão e veja o post chegar no grupo.
-
-### 5. Ativar
-
-Os cron já estão nos workflows e passam a valer sozinhos depois do primeiro commit na branch padrão.
+Se a coleta vier zerada, afrouxe os filtros no `config.json`. Comece com `comissaoMinima: 0.05` e `vendasMinimas: 50`.
 
 ## Rodando local
 
@@ -102,24 +128,27 @@ export SHOPEE_APP_SECRET=...
 export SUPABASE_URL=...
 export SUPABASE_SERVICE_KEY=...
 node scripts/coletar.js
+TESTE=1 node scripts/disparar.js
 ```
 
 Precisa de Node 20 ou mais novo, por causa do `fetch` nativo.
 
 ## Ajustes que valem a pena
 
-**Volume.** `ofertasPorRodada` no `config.json` controla quantas ofertas saem por hora. Duas por hora, das 8h as 20h, dá 26 posts por dia. Para grupo novo, comece com uma.
+**Volume.** São 3 rodadas por hora, às :05, :25 e :45, das 8h05 às 21h45. Isso dá 42 rodadas por dia (migration `tres_por_hora`). `ofertasPorRodada` no `config.json` controla quantas ofertas saem em cada rodada: deixe em 1, porque espaçado converte melhor que rajada. Os horários ficam no `cron.schedule('disparar-telegram', ...)`. A lista `disparo.horarios` do config não é mais usada.
+
+A trava contra post repetido (`JANELA_SEM_REPETIR_MIN` em `disparo.js`, 10 min) precisa ser menor que o espaço entre as rodadas.
+
+**Fila.** A coleta busca `paginasPorBusca` páginas de cada palavra-chave. A validade (`validadeEmDias`) conta da última vez que a Shopee mostrou o produto, não da primeira: quem continua na Shopee continua na fila, com o preço atualizado. Produto já enviado nunca volta, então o grupo não recebe post repetido.
 
 **Curadoria.** Os filtros são a diferença entre um grupo que as pessoas seguem e um grupo que elas silenciam. Comissão alta com produto ruim queima a lista.
 
-**Horário.** Os cron estão em UTC. BRT é UTC-3, então `11` no arquivo significa 8h aqui.
+**Horário.** Os cron do `pg_cron` estão em UTC. BRT é UTC-3, então `11` significa 8h aqui.
 
 **Medir.** Depois de duas ou três semanas, a view `desempenho_keywords` mostra quais palavras-chave rendem. Corte as que não entregam e abra espaço para testar outras.
 
 ## Limites conhecidos
 
-O agendamento do GitHub Actions não é pontual e pode atrasar alguns minutos em horário de pico.
+Projeto Supabase gratuito pausa após uma semana sem consultas. Com o agendador rodando todo dia, isso não acontece.
 
-O workflow `manter-ativo.yml` faz um commit vazio por mês porque o GitHub desativa agendamentos após 60 dias sem atividade no repositório.
-
-Projeto Supabase gratuito pausa após uma semana sem consultas. Com a coleta rodando três vezes ao dia, isso não acontece.
+Cada chamada da coleta processa um terço das buscas, para caber no tempo limite das Edge Functions. Se aumentar muito as palavras-chave ou as páginas, divida em mais partes (`?parte=N&de=M` na migration).

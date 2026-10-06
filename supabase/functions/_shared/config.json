@@ -42,6 +42,8 @@
     ]
   },
   "limitePorBusca": 20,
+  "paginasPorBusca": 3,
+  "pausaEntreBuscasMs": 500,
   "listType": 0,
   "sortType": 2,
   "filtros": {

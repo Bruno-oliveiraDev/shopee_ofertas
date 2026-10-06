@@ -1,9 +1,7 @@
+import { env } from './env.js';
 import { medidaDoProduto } from './medida.js';
 
-const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
-
-const api = (metodo) => `https://api.telegram.org/bot${TOKEN}/${metodo}`;
+const api = (metodo) => `https://api.telegram.org/bot${env('TELEGRAM_BOT_TOKEN')}/${metodo}`;
 
 const escapar = (texto) =>
   String(texto || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -88,7 +86,7 @@ async function enviar(metodo, corpo) {
   const resposta = await fetch(api(metodo), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: CHAT_ID, ...corpo }),
+    body: JSON.stringify({ chat_id: env('TELEGRAM_CHAT_ID'), ...corpo }),
   });
 
   const dados = await resposta.json();

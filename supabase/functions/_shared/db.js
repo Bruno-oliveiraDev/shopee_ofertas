@@ -1,16 +1,18 @@
-const URL = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
-const KEY = process.env.SUPABASE_SERVICE_KEY;
+import { env } from './env.js';
 
-const base = {
-  apikey: KEY,
-  Authorization: `Bearer ${KEY}`,
-  'Content-Type': 'application/json',
-};
+// Na Edge Function o Supabase injeta SUPABASE_SERVICE_ROLE_KEY; no GitHub o secret se chama SUPABASE_SERVICE_KEY.
+const chave = () => env('SUPABASE_SERVICE_KEY') || env('SUPABASE_SERVICE_ROLE_KEY');
 
 async function chamar(caminho, opcoes = {}) {
-  const resposta = await fetch(`${URL}/rest/v1/${caminho}`, {
+  const url = (env('SUPABASE_URL') || '').replace(/\/$/, '');
+  const resposta = await fetch(`${url}/rest/v1/${caminho}`, {
     ...opcoes,
-    headers: { ...base, ...(opcoes.headers || {}) },
+    headers: {
+      apikey: chave(),
+      Authorization: `Bearer ${chave()}`,
+      'Content-Type': 'application/json',
+      ...(opcoes.headers || {}),
+    },
   });
 
   const texto = await resposta.text();
@@ -22,14 +24,17 @@ async function chamar(caminho, opcoes = {}) {
   return texto ? JSON.parse(texto) : [];
 }
 
-/** Insere ignorando item_id que ja existe. Retorna somente as ofertas novas. */
-export function salvarOfertas(linhas) {
-  if (linhas.length === 0) return Promise.resolve([]);
+/**
+ * Manda a coleta para a funcao abastecer_fila (schema.sql): oferta nova entra na fila,
+ * oferta pendente ou expirada que apareceu de novo volta com preco atualizado,
+ * e oferta ja enviada nunca e tocada. Retorna { novas, renovadas }.
+ */
+export async function abastecerFila(linhas) {
+  if (linhas.length === 0) return { novas: 0, renovadas: 0 };
 
-  return chamar('ofertas?on_conflict=item_id', {
+  return chamar('rpc/abastecer_fila', {
     method: 'POST',
-    headers: { Prefer: 'resolution=ignore-duplicates,return=representation' },
-    body: JSON.stringify(linhas),
+    body: JSON.stringify({ linhas }),
   });
 }
 
@@ -66,11 +71,11 @@ export function marcarComoFalha(itemId, motivo) {
   });
 }
 
-/** Oferta velha demais perde a graca, entao sai da fila. */
+/** Sai da fila o que a Shopee parou de mostrar ha X dias (o preco guardado ja nao e confiavel). */
 export function expirarAntigas(dias) {
   const limite = new Date(Date.now() - dias * 86400000).toISOString();
 
-  return chamar(`ofertas?status=eq.pendente&coletada_em=lt.${limite}`, {
+  return chamar(`ofertas?status=eq.pendente&visto_em=lt.${limite}`, {
     method: 'PATCH',
     headers: { Prefer: 'return=minimal' },
     body: JSON.stringify({ status: 'expirada' }),

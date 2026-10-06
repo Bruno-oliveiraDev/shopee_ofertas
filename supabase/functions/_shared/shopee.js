@@ -1,8 +1,5 @@
-import { createHash } from 'node:crypto';
+import { env } from './env.js';
 import { pontuar } from './selecao.js';
-
-const APP_ID = process.env.SHOPEE_APP_ID;
-const APP_SECRET = process.env.SHOPEE_APP_SECRET;
 
 const CAMPOS = [
   'itemId',
@@ -26,20 +23,25 @@ const CAMPOS = [
  * A Shopee assina cada requisicao com SHA256(appId + timestamp + payload + secret).
  * O payload precisa ser exatamente a string enviada no corpo, byte a byte.
  */
-function assinar(payload) {
-  const timestamp = Math.floor(Date.now() / 1000);
-  const signature = createHash('sha256')
-    .update(APP_ID + timestamp + payload + APP_SECRET)
-    .digest('hex');
-
-  return `SHA256 Credential=${APP_ID}, Timestamp=${timestamp}, Signature=${signature}`;
+async function sha256hex(texto) {
+  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(texto));
+  return [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-export async function buscarOfertas(cfg, keyword) {
+async function assinar(payload) {
+  const appId = env('SHOPEE_APP_ID');
+  const timestamp = Math.floor(Date.now() / 1000);
+  const signature = await sha256hex(appId + timestamp + payload + env('SHOPEE_APP_SECRET'));
+
+  return `SHA256 Credential=${appId}, Timestamp=${timestamp}, Signature=${signature}`;
+}
+
+/** Uma pagina de resultados de uma busca. temMais diz se vale pedir a proxima. */
+export async function buscarOfertas(cfg, keyword, pagina = 1) {
   const termo = keyword.replace(/["\\]/g, '');
   const query =
     `{productOfferV2(keyword:"${termo}",listType:${cfg.listType},sortType:${cfg.sortType},` +
-    `page:1,limit:${cfg.limitePorBusca}){nodes{${CAMPOS}} pageInfo{page limit hasNextPage}}}`;
+    `page:${pagina},limit:${cfg.limitePorBusca}){nodes{${CAMPOS}} pageInfo{page limit hasNextPage}}}`;
 
   const payload = JSON.stringify({ query });
 
@@ -47,7 +49,7 @@ export async function buscarOfertas(cfg, keyword) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: assinar(payload),
+      Authorization: await assinar(payload),
     },
     body: payload,
   });
@@ -62,7 +64,11 @@ export async function buscarOfertas(cfg, keyword) {
     throw new Error(`Shopee recusou "${keyword}": ${JSON.stringify(dados.errors)}`);
   }
 
-  return dados?.data?.productOfferV2?.nodes ?? [];
+  const resultado = dados?.data?.productOfferV2;
+  return {
+    produtos: resultado?.nodes ?? [],
+    temMais: Boolean(resultado?.pageInfo?.hasNextPage),
+  };
 }
 
 /** Converte o retorno cru da API na linha que vai para o banco. */

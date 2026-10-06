@@ -1,0 +1,8 @@
+project_id = "shopee_ofertas"
+
+# As funcoes sao chamadas pelo pg_cron com o header x-cron-secret, nao com JWT de usuario.
+[functions.disparar]
+verify_jwt = false
+
+[functions.coletar]
+verify_jwt = false
