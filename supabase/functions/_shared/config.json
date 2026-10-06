@@ -2,15 +2,32 @@
   "endpoint": "https://open-api.affiliate.shopee.com.br/graphql",
   "categorias": {
     "roupa": [
+      "body bebê kit",
+      "macacão bebê",
+      "kit pagão bebê",
+      "conjunto bebê menina",
+      "conjunto bebê menino",
       "conjunto infantil menino",
       "conjunto infantil menina",
       "pijama infantil",
+      "vestido infantil",
+      "kit short infantil",
+      "kit camiseta infantil",
       "meia bebê antiderrapante",
       "toalha de banho bebê capuz",
       "manta bebê",
       "cueiro bebê",
       "babador bebê kit",
       "pano de boca bebê"
+    ],
+    "fralda": [
+      "fralda descartável",
+      "fralda pampers",
+      "fralda huggies",
+      "fralda turma da mônica",
+      "fralda personal baby",
+      "fralda calça",
+      "fralda de pano kit"
     ],
     "higiene": [
       "lenço umedecido bebê",
@@ -97,5 +114,14 @@
     ],
     "selo": "🎁 Ideia de presente pro Dia das Crianças",
     "topDoDiaHora": 21
+  },
+  "pesoCategoria": {
+    "roupa": 3,
+    "fralda": 3,
+    "higiene": 2,
+    "alimentacao": 1,
+    "seguranca": 1,
+    "brinquedo_bebe": 1,
+    "brinquedo": 1
   }
 }

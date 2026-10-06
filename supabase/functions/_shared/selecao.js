@@ -1,9 +1,9 @@
 // Escolhe a proxima oferta pensando no grupo, nao so na comissao:
-// alterna categoria, puxa brinquedo pra noite e da destaque a campanha.
+// alterna categoria, respeita o peso de cada assunto e puxa roupa e fralda pra noite.
 
 const NOITE_A_PARTIR_DAS = 18;
-const CATEGORIAS_NOITE = ['brinquedo', 'brinquedo_bebe', 'roupa'];
-const CATEGORIAS_DIA = ['higiene', 'alimentacao', 'seguranca'];
+const CATEGORIAS_NOITE = ['roupa', 'fralda'];
+const CATEGORIAS_DIA = ['fralda', 'higiene', 'alimentacao', 'seguranca'];
 
 /** Todas as buscas, na ordem das categorias. */
 export const todasKeywords = (cfg) => Object.values(cfg.categorias).flat();
@@ -54,7 +54,6 @@ export function pontuar(oferta) {
  * recentes: categorias das ultimas ofertas enviadas, mais nova primeiro.
  */
 export function escolher(cfg, candidatas, recentes, quantidade, agora = agoraBrasilia()) {
-  const campanha = campanhaAtiva(cfg, agora);
   const noite = agora.hora >= NOITE_A_PARTIR_DAS;
   const ultimas = [...recentes];
   const escolhidas = [];
@@ -69,7 +68,9 @@ export function escolher(cfg, candidatas, recentes, quantidade, agora = agoraBra
 
       if (noite && CATEGORIAS_NOITE.includes(categoria)) nota += 4;
       if (!noite && CATEGORIAS_DIA.includes(categoria)) nota += 2;
-      if (campanha?.categorias.includes(categoria)) nota += 12;
+      // peso do assunto (config.pesoCategoria): o que o grupo quer ver mais vem mais vezes.
+      // Com o bloqueio das 2 ultimas, peso alto em roupa e fralda faz 2 de cada 3 posts serem delas.
+      nota += ((cfg.pesoCategoria?.[categoria] ?? 1) - 1) * 3;
       // mesma categoria das 2 ultimas cai bastante, mas nao some se for o que sobrou
       if (bloqueadas.has(categoria)) nota -= 100;
 
