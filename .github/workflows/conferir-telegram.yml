@@ -1,0 +1,27 @@
+name: Conferir chat do Telegram
+
+# Mostra para qual chat o bot esta postando (nome, @ e tipo), sem expor token nem id.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  conferir:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Perguntar ao Telegram
+        run: |
+          echo "--- chat configurado (TELEGRAM_CHAT_ID) ---"
+          curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getChat?chat_id=${TELEGRAM_CHAT_ID}" \
+            | jq '{ok, description, tipo: .result.type, nome: .result.title, arroba: .result.username}'
+          echo "--- grupo da LP (@achadinhos_Kidss) ---"
+          curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getChat?chat_id=@achadinhos_Kidss" \
+            | jq '{ok, description, tipo: .result.type, nome: .result.title, arroba: .result.username, mesmo_chat: (.result.id|tostring == env.TELEGRAM_CHAT_ID)}'
+          echo "--- o bot e admin no grupo da LP? ---"
+          BOT_ID=$(curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe" | jq -r .result.id)
+          curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getChatMember?chat_id=@achadinhos_Kidss&user_id=${BOT_ID}" \
+            | jq '{ok, description, situacao: .result.status, pode_postar: .result.can_post_messages}'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
