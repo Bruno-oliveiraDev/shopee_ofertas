@@ -1,22 +1,24 @@
-name: Disparar no Telegram
+name: Disparar no Telegram (manual)
+
+# O disparo agendado roda no Supabase (pg_cron -> Edge Function "disparar"), na hora exata.
+# Este workflow fica como plano B: posta UMA rodada na hora que voce clicar.
 
 on:
-  schedule:
-    # 3 plantoes por dia (7h50, 12h50 e 17h50 de Brasilia; cron em UTC).
-    # Cada um fica ligado ~5h e posta sozinho nos horarios de config.disparo.horarios,
-    # porque o agendador do GitHub atrasa e pula execucoes curtas.
-    - cron: '50 10,15,20 * * *'
   workflow_dispatch:
+    inputs:
+      teste:
+        description: 'So mostrar a oferta escolhida, sem postar'
+        type: boolean
+        default: true
 
 concurrency:
-  # plantao novo espera o anterior terminar; o disparo pula horario que ja teve envio
   group: shopee-disparo
   cancel-in-progress: false
 
 jobs:
   disparar:
     runs-on: ubuntu-latest
-    timeout-minutes: 340
+    timeout-minutes: 5
 
     steps:
       - uses: actions/checkout@v4
@@ -25,9 +27,10 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Plantao de disparos
-        run: node scripts/plantao.js
+      - name: Disparar uma rodada
+        run: node scripts/disparar.js
         env:
+          TESTE: ${{ inputs.teste && '1' || '0' }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

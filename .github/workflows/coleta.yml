@@ -1,9 +1,9 @@
-name: Coletar ofertas
+name: Coletar ofertas (manual)
+
+# A coleta agendada roda no Supabase (pg_cron -> Edge Function "coletar"), 3x ao dia.
+# Este workflow fica como plano B, para rodar uma coleta completa na mao.
 
 on:
-  schedule:
-    # horarios em UTC. BRT e UTC-3, entao isso roda 7h, 13h e 19h
-    - cron: '0 10,16,22 * * *'
   workflow_dispatch:
 
 concurrency:
@@ -13,7 +13,7 @@ concurrency:
 jobs:
   coletar:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
