@@ -1,0 +1,46 @@
+name: Publicar no Supabase
+
+# Copia os segredos do GitHub para as Edge Functions e publica "disparar" e "coletar".
+# Os valores nunca aparecem: o GitHub so deixa usar, nao deixa ver.
+# Precisa de 2 secrets a mais aqui no GitHub: SUPABASE_ACCESS_TOKEN (conta dona do projeto) e CRON_SECRET
+# (o mesmo valor do cron_secret do Vault).
+
+on:
+  workflow_dispatch:
+
+env:
+  PROJETO: ycgojwtobrpjjopylcgp
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Segredos das Edge Functions
+        run: |
+          supabase secrets set --project-ref "$PROJETO" \
+            CRON_SECRET="$CRON_SECRET" \
+            TELEGRAM_BOT_TOKEN="$TELEGRAM_BOT_TOKEN" \
+            TELEGRAM_CHAT_ID="$TELEGRAM_CHAT_ID" \
+            SHOPEE_APP_ID="$SHOPEE_APP_ID" \
+            SHOPEE_APP_SECRET="$SHOPEE_APP_SECRET"
+          supabase secrets list --project-ref "$PROJETO"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          SHOPEE_APP_ID: ${{ secrets.SHOPEE_APP_ID }}
+          SHOPEE_APP_SECRET: ${{ secrets.SHOPEE_APP_SECRET }}
+
+      - name: Publicar as funcoes (verify_jwt desligado pelo supabase/config.toml)
+        run: supabase functions deploy --project-ref "$PROJETO" --use-api
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
