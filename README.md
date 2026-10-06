@@ -135,7 +135,9 @@ Precisa de Node 20 ou mais novo, por causa do `fetch` nativo.
 
 ## Ajustes que valem a pena
 
-**Volume.** `ofertasPorRodada` no `config.json` controla quantas ofertas saem por rodada. Com 14 rodadas por dia (8h05 às 21h05), 1 por rodada dá 14 posts e 2 dão 28. Os horários ficam no `cron.schedule('disparar-telegram', ...)` da migration do agendador. A lista `disparo.horarios` do config não é mais usada.
+**Volume.** São 3 rodadas por hora, às :05, :25 e :45, das 8h05 às 21h45. Isso dá 42 rodadas por dia (migration `tres_por_hora`). `ofertasPorRodada` no `config.json` controla quantas ofertas saem em cada rodada: deixe em 1, porque espaçado converte melhor que rajada. Os horários ficam no `cron.schedule('disparar-telegram', ...)`. A lista `disparo.horarios` do config não é mais usada.
+
+A trava contra post repetido (`JANELA_SEM_REPETIR_MIN` em `disparo.js`, 10 min) precisa ser menor que o espaço entre as rodadas.
 
 **Fila.** A coleta busca `paginasPorBusca` páginas de cada palavra-chave. A validade (`validadeEmDias`) conta da última vez que a Shopee mostrou o produto, não da primeira: quem continua na Shopee continua na fila, com o preço atualizado. Produto já enviado nunca volta, então o grupo não recebe post repetido.
 

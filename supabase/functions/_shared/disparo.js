@@ -5,8 +5,9 @@ import { agoraBrasilia, campanhaAtiva, categoriaDe, escolher, todasKeywords } fr
 const pausa = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const TOP_DO_DIA = 5;
-// duas chamadas no mesmo horario (agendador repetiu, ou alguem rodou na mao) postariam em dobro
-const JANELA_SEM_REPETIR_MIN = 20;
+// duas chamadas no mesmo horario (agendador repetiu, ou alguem rodou na mao) postariam em dobro.
+// Menor que o espaco entre rodadas (:05, :25, :45 = 20 min), senao barra a rodada legitima seguinte.
+const JANELA_SEM_REPETIR_MIN = 10;
 
 /**
  * Posta a(s) proxima(s) oferta(s) da fila.
@@ -32,8 +33,8 @@ export async function disparar(cfg, { teste = false } = {}) {
 
   const categoriasRecentes = historico.map((o) => categoriaDe(cfg, o.keyword));
 
-  // Na campanha, a rodada das :05 do horario da noite vira a lista "Top 5 presentes"
-  const horaDoTop = campanha && agora.hora === campanha.topDoDiaHora && agora.minuto < 30;
+  // Na campanha, so a rodada das :05 do horario da noite vira a lista "Top 5 presentes" (as de :25 e :45 seguem normais)
+  const horaDoTop = campanha && agora.hora === campanha.topDoDiaHora && agora.minuto < 15;
 
   if (horaDoTop) {
     const presentes = candidatas
