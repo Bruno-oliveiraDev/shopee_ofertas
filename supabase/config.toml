@@ -6,7 +6,3 @@ verify_jwt = false
 
 [functions.coletar]
 verify_jwt = false
-
-# O cockpit confere o login do usuario por conta propria (tabela admins), entao o gateway nao barra.
-[functions.cockpit]
-verify_jwt = false
