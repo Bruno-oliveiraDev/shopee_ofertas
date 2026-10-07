@@ -6,3 +6,7 @@ verify_jwt = false
 
 [functions.coletar]
 verify_jwt = false
+
+# O cockpit confere a chave do cockpit (Vault: cockpit_chave) por conta propria, entao o gateway nao barra.
+[functions.cockpit]
+verify_jwt = false

@@ -104,21 +104,24 @@ export function normalizar(produto, keyword) {
 const simplificar = (texto) =>
   String(texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-export function passaNoFiltro(linha, filtros) {
-  if (!linha.link || !linha.preco) return false;
+/** Motivo de a oferta ficar de fora (vai pro log da coleta), ou null se passou. */
+export function motivoReprovacao(linha, filtros) {
+  if (!linha.link || !linha.preco) return 'sem link ou preco';
 
   // grupo de pais: qualquer termo bloqueado no nome derruba a oferta
   const nome = simplificar(linha.nome);
   const bloqueadas = filtros.palavrasBloqueadas || [];
-  if (bloqueadas.some((p) => nome.includes(simplificar(p)))) return false;
+  if (bloqueadas.some((p) => nome.includes(simplificar(p)))) return 'palavra bloqueada';
 
   // produto infantil sem nota ou com nota baixa nao entra
-  if (filtros.notaMinima && !(linha.nota >= filtros.notaMinima)) return false;
+  if (filtros.notaMinima && !(linha.nota >= filtros.notaMinima)) return 'nota baixa';
 
-  if (linha.comissao < filtros.comissaoMinima) return false;
-  if (linha.desconto < filtros.descontoMinimo) return false;
-  if (linha.vendas < filtros.vendasMinimas) return false;
-  if (linha.preco < filtros.precoMinimo) return false;
-  if (linha.preco > filtros.precoMaximo) return false;
-  return true;
+  if (linha.comissao < filtros.comissaoMinima) return 'comissao baixa';
+  if (linha.desconto < filtros.descontoMinimo) return 'desconto baixo';
+  if (linha.vendas < filtros.vendasMinimas) return 'poucas vendas';
+  if (linha.preco < filtros.precoMinimo) return 'preco baixo';
+  if (linha.preco > filtros.precoMaximo) return 'preco alto';
+  return null;
 }
+
+export const passaNoFiltro = (linha, filtros) => motivoReprovacao(linha, filtros) === null;

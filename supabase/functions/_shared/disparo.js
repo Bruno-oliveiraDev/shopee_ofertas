@@ -1,40 +1,112 @@
-import { candidatasDaFila, ultimasEnviadas, marcarComoEnviada, marcarComoFalha } from './db.js';
+import { canaisAtivos, candidatasDoCanal, ultimosDoCanal, registrarEnvio, marcarSaiu, pausas } from './db.js';
 import { postarOferta, postarTexto, montarMensagem, montarTopDoDia } from './telegram.js';
+import { postarOfertaWhatsApp, postarTextoWhatsApp } from './whatsapp.js';
 import { agoraBrasilia, campanhaAtiva, categoriaDe, escolher, todasKeywords } from './selecao.js';
 
 const pausa = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const TOP_DO_DIA = 5;
-// duas chamadas no mesmo horario (agendador repetiu, ou alguem rodou na mao) postariam em dobro.
-// Menor que o espaco entre rodadas (:05, :25, :45 = 20 min), senao barra a rodada legitima seguinte.
-const JANELA_SEM_REPETIR_MIN = 10;
+// o agendador bate a cada 5 min; se ele repetir (ou alguem chamar na mao), o canal nao posta 2x no mesmo horario
+const JANELA_SEM_REPETIR_MIN = 4;
+
+/** "08:05" do horario atual, arredondado pra baixo de 5 em 5 min (o pg_cron pode atrasar uns segundos). */
+export function horarioDaRodada(agora = agoraBrasilia()) {
+  const minuto = Math.floor(agora.minuto / 5) * 5;
+  return `${String(agora.hora).padStart(2, '0')}:${String(minuto).padStart(2, '0')}`;
+}
+
+const formatoDo = (canal) => (canal.tipo === 'whatsapp' ? 'whatsapp' : 'html');
+
+/** Posta e devolve o id da mensagem (Telegram: message_id; WhatsApp: key.id). */
+async function postar(canal, oferta) {
+  if (canal.tipo === 'whatsapp') {
+    const r = await postarOfertaWhatsApp(canal, oferta);
+    return r?.key?.id ?? null;
+  }
+  const r = await postarOferta(oferta, canal.destino);
+  return r?.message_id ?? null;
+}
+
+function postarLista(canal, texto) {
+  return canal.tipo === 'whatsapp' ? postarTextoWhatsApp(canal, texto) : postarTexto(texto, canal.destino);
+}
+
+async function saiu(canal, oferta, { origem, tipo = 'oferta', msgId = null }) {
+  await registrarEnvio({ canal, itemId: oferta.item_id, tipo, ok: true, origem, msgId });
+  await marcarSaiu(oferta.item_id, canal.tipo === 'telegram' ? msgId : null);
+}
 
 /**
- * Posta a(s) proxima(s) oferta(s) da fila.
- * teste: escolhe e monta a mensagem, mas nao posta nem marca nada no banco.
+ * Rodada do agendador: cada canal ativo cuja grade tem o horario de agora posta.
+ * Respeita as pausas da tela (tudo, ou so o WhatsApp).
  */
-export async function disparar(cfg, { teste = false } = {}) {
-  const log = [];
+export async function rodada(cfg, { origem = 'agendador' } = {}) {
   const agora = agoraBrasilia();
-  const campanha = campanhaAtiva(cfg, agora);
-  const candidatas = await candidatasDaFila(todasKeywords(cfg));
-  const base = { teste, horario: `${agora.dia} ${agora.hora}:${String(agora.minuto).padStart(2, '0')}`, fila: candidatas.length };
+  const horario = horarioDaRodada(agora);
+  const pausado = await pausas();
 
-  if (candidatas.length === 0) {
-    return { ...base, enviadas: 0, motivo: 'Fila vazia. Nada a postar nesta rodada.' };
+  if (pausado.tudo) return { horario: `${agora.dia} ${horario}`, motivo: 'Disparo pausado no cockpit.', resultados: [] };
+
+  const canais = (await canaisAtivos()).filter((c) => !(pausado.whatsapp && c.tipo === 'whatsapp'));
+  const daVez = canais.filter((c) => (c.horarios || []).includes(horario));
+
+  const resultados = [];
+  for (const canal of daVez) {
+    try {
+      resultados.push(await dispararNoCanal(cfg, canal, { origem }));
+    } catch (erro) {
+      // um canal quebrado (WhatsApp caiu, por exemplo) nao derruba os outros
+      await registrarEnvio({ canal, ok: false, erro: erro.message, origem }).catch(() => {});
+      resultados.push({ canal: canal.nome, enviadas: 0, erro: erro.message });
+    }
   }
 
-  const historico = await ultimasEnviadas();
+  return { horario: `${agora.dia} ${horario}`, canaisAtivos: canais.length, daVez: daVez.length, resultados };
+}
 
-  const ultimoEnvio = historico[0] ? new Date(historico[0].enviada_em) : null;
-  if (!teste && ultimoEnvio && Date.now() - ultimoEnvio.getTime() < JANELA_SEM_REPETIR_MIN * 60 * 1000) {
+/**
+ * Posta a(s) proxima(s) oferta(s) da fila neste canal.
+ * teste: escolhe e monta a mensagem, mas nao posta nem registra nada.
+ * oferta: posta exatamente esta (botao "enviar agora" da fila no cockpit).
+ */
+export async function dispararNoCanal(cfg, canal, { teste = false, origem = 'agendador', oferta = null } = {}) {
+  const log = [];
+  const agora = agoraBrasilia();
+  const base = { canal: canal.nome, tipo: canal.tipo, teste, horario: `${agora.dia} ${horarioDaRodada(agora)}` };
+  const formato = formatoDo(canal);
+
+  if (oferta) {
+    oferta.categoria = categoriaDe(cfg, oferta.keyword);
+    if (teste) return { ...base, enviadas: 0, mensagens: [montarMensagem(oferta, formato)] };
+    try {
+      const msgId = await postar(canal, oferta);
+      await saiu(canal, oferta, { origem, msgId });
+      return { ...base, enviadas: 1, escolhidas: [{ item_id: oferta.item_id, nome: oferta.nome }] };
+    } catch (erro) {
+      await registrarEnvio({ canal, itemId: oferta.item_id, ok: false, erro: erro.message, origem });
+      throw erro;
+    }
+  }
+
+  const candidatas = await candidatasDoCanal(canal.id, todasKeywords(cfg), cfg.disparo?.validadeEmDias ?? 3);
+  base.fila = candidatas.length;
+
+  if (candidatas.length === 0) {
+    return { ...base, enviadas: 0, motivo: 'Fila vazia para este canal. Nada a postar nesta rodada.' };
+  }
+
+  const historico = await ultimosDoCanal(canal.id);
+  const ultimoEnvio = historico[0] ? new Date(historico[0].enviado_em) : null;
+
+  if (!teste && origem === 'agendador' && ultimoEnvio && Date.now() - ultimoEnvio.getTime() < JANELA_SEM_REPETIR_MIN * 60 * 1000) {
     return { ...base, enviadas: 0, motivo: `Ja houve envio as ${ultimoEnvio.toISOString()}, pulando esta rodada.` };
   }
 
-  const categoriasRecentes = historico.map((o) => categoriaDe(cfg, o.keyword));
+  const categoriasRecentes = historico.map((e) => categoriaDe(cfg, e.keyword));
+  const campanha = campanhaAtiva(cfg, agora);
 
-  // Na campanha, so a rodada das :05 do horario da noite vira a lista "Top 5 presentes" (as de :25 e :45 seguem normais)
-  const horaDoTop = campanha && agora.hora === campanha.topDoDiaHora && agora.minuto < 15;
+  // Na campanha, a 1a rodada do horario da noite vira a lista "Top 5 presentes"
+  const horaDoTop = campanha && agora.hora === campanha.topDoDiaHora && agora.minuto < 15 && origem === 'agendador';
 
   if (horaDoTop) {
     const presentes = candidatas
@@ -43,43 +115,61 @@ export async function disparar(cfg, { teste = false } = {}) {
       .slice(0, TOP_DO_DIA);
 
     if (presentes.length >= 3) {
-      const texto = montarTopDoDia(presentes, campanha);
+      const texto = montarTopDoDia(presentes, campanha, formato);
       if (teste) return { ...base, enviadas: 0, top: presentes.map((o) => o.nome), mensagens: [texto] };
 
-      await postarTexto(texto);
-      for (const o of presentes) await marcarComoEnviada(o.item_id);
+      await postarLista(canal, texto);
+      for (const o of presentes) await saiu(canal, o, { origem, tipo: 'top' });
       return { ...base, enviadas: presentes.length, top: presentes.map((o) => o.nome) };
     }
 
     log.push('Poucos presentes na fila para o top do dia, segue o disparo normal.');
   }
 
-  const fila = escolher(cfg, candidatas, categoriasRecentes, cfg.disparo.ofertasPorRodada, agora);
+  const quantidade = canal.ofertas_por_rodada || 1;
+  // fixadas no cockpit (prioridade) passam na frente da escolha automatica
+  const fixadas = candidatas.filter((o) => o.prioridade > 0).slice(0, quantidade);
+  const resto = candidatas.filter((o) => !(o.prioridade > 0));
+  const fila = [...fixadas, ...escolher(cfg, resto, categoriasRecentes, quantidade - fixadas.length, agora)];
 
   // a categoria decide se o preco por unidade aparece (brinquedo nao tem)
-  for (const oferta of fila) oferta.categoria = categoriaDe(cfg, oferta.keyword);
+  for (const o of fila) o.categoria = categoriaDe(cfg, o.keyword);
 
-  const resumo = (o) => ({ item_id: o.item_id, categoria: o.categoria, nome: o.nome, preco: o.preco });
+  const resumo = (o) => ({ item_id: o.item_id, categoria: o.categoria, nome: o.nome, preco: o.preco, fixada: o.prioridade > 0 });
 
   if (teste) {
-    return { ...base, enviadas: 0, escolhidas: fila.map(resumo), mensagens: fila.map(montarMensagem), log };
+    return { ...base, enviadas: 0, escolhidas: fila.map(resumo), mensagens: fila.map((o) => montarMensagem(o, formato)), log };
   }
 
   let enviadas = 0;
 
-  for (const [i, oferta] of fila.entries()) {
+  for (const [i, o] of fila.entries()) {
     try {
-      await postarOferta(oferta);
-      await marcarComoEnviada(oferta.item_id);
+      const msgId = await postar(canal, o);
+      await saiu(canal, o, { origem, msgId });
       enviadas++;
-      log.push(`Enviada: ${oferta.item_id} | ${oferta.categoria} | ${oferta.nome.slice(0, 50)}`);
+      log.push(`Enviada: ${o.item_id} | ${o.categoria} | ${o.nome.slice(0, 50)}`);
     } catch (erro) {
-      await marcarComoFalha(oferta.item_id, erro.message);
-      log.push(`Falhou: ${oferta.item_id} | ${erro.message}`);
+      await registrarEnvio({ canal, itemId: o.item_id, ok: false, erro: erro.message, origem });
+      log.push(`Falhou: ${o.item_id} | ${erro.message}`);
     }
 
-    if (i < fila.length - 1) await pausa(cfg.disparo.intervaloSegundos * 1000);
+    if (i < fila.length - 1) await pausa((cfg.disparo?.intervaloSegundos ?? 5) * 1000);
   }
 
   return { ...base, enviadas, de: fila.length, escolhidas: fila.map(resumo), log };
+}
+
+/** Script manual do GitHub (plano B): uma rodada em todos os canais ativos, ignorando a grade. */
+export async function disparar(cfg, { teste = false, origem = 'github' } = {}) {
+  const canais = await canaisAtivos();
+  const resultados = [];
+  for (const canal of canais) {
+    try {
+      resultados.push(await dispararNoCanal(cfg, canal, { teste, origem }));
+    } catch (erro) {
+      resultados.push({ canal: canal.nome, enviadas: 0, erro: erro.message });
+    }
+  }
+  return { teste, resultados };
 }

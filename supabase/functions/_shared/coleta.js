@@ -1,5 +1,5 @@
-import { buscarOfertas, normalizar, passaNoFiltro } from './shopee.js';
-import { abastecerFila, expirarAntigas } from './db.js';
+import { buscarOfertas, normalizar, motivoReprovacao } from './shopee.js';
+import { abastecerFila, expirarAntigas, registrarColetas } from './db.js';
 import { todasKeywords, categoriaDe } from './selecao.js';
 
 // fralda de marca paga 2-3% de comissao e quase nao tem desconto: com o filtro geral nao entrava nenhuma.
@@ -20,20 +20,27 @@ export async function coletar(cfg, { parte = 1, de = 1 } = {}) {
   const pausaMs = cfg.pausaEntreBuscasMs ?? 1500; // respeita o rate limit da Shopee
 
   const candidatas = [];
+  const registro = [];
   let buscas = 0;
   let falhas = 0;
 
   for (const keyword of keywords) {
+    const categoria = categoriaDe(cfg, keyword);
+    const reprovadas = {};
     let retornadas = 0;
     let aprovadas = 0;
+    let erroBusca = null;
 
     for (let pagina = 1; pagina <= paginas; pagina++) {
       buscas++;
       try {
         const { produtos, temMais } = await buscarOfertas(cfg, keyword, pagina);
-        const ok = produtos
-          .map((p) => normalizar(p, keyword))
-          .filter((linha) => passaNoFiltro(linha, filtrosDe(cfg, keyword)));
+        const ok = [];
+        for (const linha of produtos.map((p) => normalizar(p, keyword))) {
+          const motivo = motivoReprovacao(linha, filtrosDe(cfg, keyword));
+          if (motivo) reprovadas[motivo] = (reprovadas[motivo] || 0) + 1;
+          else ok.push({ ...linha, categoria });
+        }
 
         retornadas += produtos.length;
         aprovadas += ok.length;
@@ -43,6 +50,7 @@ export async function coletar(cfg, { parte = 1, de = 1 } = {}) {
         if (!temMais) break;
       } catch (erro) {
         falhas++;
+        erroBusca = erro.message;
         log.push(`${keyword} (pagina ${pagina}): ${erro.message}`);
         await pausa(pausaMs);
         break;
@@ -50,7 +58,11 @@ export async function coletar(cfg, { parte = 1, de = 1 } = {}) {
     }
 
     log.push(`${keyword}: ${retornadas} retornadas, ${aprovadas} aprovadas`);
+    registro.push({ keyword, categoria, retornadas, aprovadas, reprovadas, erro: erroBusca ? erroBusca.slice(0, 300) : null });
   }
+
+  // o log da coleta nunca derruba a coleta
+  await registrarColetas(registro).catch((e) => log.push(`Log da coleta falhou: ${e.message}`));
 
   if (buscas > 0 && falhas === buscas) {
     throw new Error('Todas as buscas falharam. Verifique credenciais e assinatura.');
