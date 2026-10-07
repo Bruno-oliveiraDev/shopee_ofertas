@@ -25,16 +25,14 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-// Porta de entrada do cockpit: a tela manda a chave do cockpit (Vault: cockpit_chave) no header x-cockpit-chave.
+// Porta de entrada do cockpit. Por decisao do Bruno (07/10) fica SEM senha por enquanto:
+// quem tem o endereco usa. Para fechar de novo, conferir uma chave aqui antes de executar.
 // Corpo: { acao: 'nome', ...parametros }
-export function servirCockpit(acoes, chaveOk) {
+export function servirCockpit(acoes) {
   Deno.serve(async (req) => {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
 
     const responder = (dados, status = 200) => Response.json(dados, { status, headers: CORS });
-
-    const chave = req.headers.get('x-cockpit-chave') || '';
-    if (!(await chaveOk(chave).catch(() => false))) return responder({ erro: 'Chave do cockpit invalida' }, 401);
 
     let corpo = {};
     try {
@@ -47,7 +45,7 @@ export function servirCockpit(acoes, chaveOk) {
     if (!acao) return responder({ erro: `Acao desconhecida: ${corpo.acao}` }, 400);
 
     try {
-      const resultado = await acao(corpo, { chave });
+      const resultado = await acao(corpo);
       return responder(resultado ?? { ok: true });
     } catch (erro) {
       console.error(corpo.acao, erro);

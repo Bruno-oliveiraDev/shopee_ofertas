@@ -212,3 +212,26 @@ insert into public.ajustes (chave, valor) values ('robo', $cfg${
   }
 }$cfg$::jsonb)
 on conflict (chave) do nothing;
+
+-- Cockpit sem senha (decisao do Bruno, 07/10): a funcao "cockpit" chama esta, que pega a chave do Vault
+-- por conta propria e repassa para a cockpit_acao que ja existia (fixar, pular, bloquear, pausar...).
+-- Se ainda nao existir chave no Vault, cria uma aleatoria. So a service_role executa.
+create or replace function public.cockpit_acao_interna(p_acao text, p_alvo text default null, p_valor text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_chave text;
+begin
+  select decrypted_secret into v_chave from vault.decrypted_secrets where name = 'cockpit_chave';
+  if v_chave is null then
+    v_chave := replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '');
+    perform vault.create_secret(v_chave, 'cockpit_chave');
+  end if;
+  return public.cockpit_acao(v_chave, p_acao, p_alvo, p_valor);
+end;
+$$;
+revoke execute on function public.cockpit_acao_interna(text, text, text) from public, anon, authenticated;
+grant execute on function public.cockpit_acao_interna(text, text, text) to service_role;

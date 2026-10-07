@@ -186,17 +186,11 @@ export function registrarColetas(linhas) {
   return chamar('coletas', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(linhas) });
 }
 
-/** A chave do cockpit e conferida no banco (funcao cockpit_chave_ok, que le o Vault). */
-export async function chaveOk(chave) {
-  if (!chave) return false;
-  const ok = await chamar('rpc/cockpit_chave_ok', { method: 'POST', body: JSON.stringify({ p_chave: chave }) });
-  return ok === true;
-}
-
-/** Acoes que ja existem no banco: fixar, pular, voltar, bloquear, desbloquear, pausar, retomar. */
-export function acaoNoBanco(chave, acao, alvo = null, valor = null) {
-  return chamar('rpc/cockpit_acao', {
+/** Acoes que ja existem no banco (cockpit_acao): fixar, pular, voltar, bloquear, desbloquear, pausar, retomar.
+ *  A cockpit_acao_interna pega a chave do Vault sozinha (cockpit sem senha). */
+export function acaoNoBanco(acao, alvo = null, valor = null) {
+  return chamar('rpc/cockpit_acao_interna', {
     method: 'POST',
-    body: JSON.stringify({ p_chave: chave, p_acao: acao, p_alvo: alvo, p_valor: valor }),
+    body: JSON.stringify({ p_acao: acao, p_alvo: alvo, p_valor: valor }),
   });
 }

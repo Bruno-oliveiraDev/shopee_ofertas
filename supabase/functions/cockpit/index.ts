@@ -1,8 +1,8 @@
-// Tudo o que a tela do cockpit faz passa por aqui: a chave do cockpit e conferida no banco (Vault),
-// e daqui pra frente usa a service_role (as tabelas nao ficam abertas pro navegador).
+// Tudo o que a tela do cockpit faz passa por aqui, com a service_role (as tabelas nao ficam abertas pro navegador).
+// Sem senha por enquanto (decisao do Bruno, 07/10).
 import { servirCockpit } from '../_shared/http.js';
 import { carregarConfig } from '../_shared/config.js';
-import { acaoNoBanco, canal, chamar, chaveOk, gravarSegredo, lerSegredos, ofertaPorId, pausas } from '../_shared/db.js';
+import { acaoNoBanco, canal, chamar, gravarSegredo, lerSegredos, ofertaPorId, pausas } from '../_shared/db.js';
 import { dispararNoCanal } from '../_shared/disparo.js';
 import { coletar } from '../_shared/coleta.js';
 import { infoDoChat, postarTexto } from '../_shared/telegram.js';
@@ -78,8 +78,8 @@ servirCockpit(
 
     // ---------------------------------------------------------------- acoes que ja existem no banco
     // fixar, desafixar, pular, voltar, bloquear_produto, bloquear_loja, desbloquear, pausar, retomar
-    oferta_acao: ({ acao, alvo, valor }: { acao: string; alvo?: string; valor?: string }, { chave }: { chave: string }) =>
-      acaoNoBanco(chave, obrigatorio(acao, 'acao') as string, alvo ?? null, valor ?? null),
+    oferta_acao: ({ acao, alvo, valor }: { acao: string; alvo?: string; valor?: string }) =>
+      acaoNoBanco(obrigatorio(acao, 'acao') as string, alvo ?? null, valor ?? null),
 
     // ---------------------------------------------------------------- canais e config
     async canal_salvar({ canal: c }: { canal: Record<string, unknown> }) {
@@ -125,9 +125,10 @@ servirCockpit(
       return infoDoChat(c.destino)
     },
 
-    async canal_teste({ canal_id, texto }: { canal_id: string; texto?: string }) {
+    // texto fixo: com o cockpit aberto, ninguem usa isto pra mandar mensagem livre no grupo
+    async canal_teste({ canal_id }: { canal_id: string }) {
       const c = await canal(obrigatorio(canal_id, 'canal_id') as string)
-      const mensagem = texto || '✅ Teste do cockpit: este canal esta conectado.'
+      const mensagem = '✅ Teste do cockpit: este canal esta conectado.'
       if (c.tipo === 'whatsapp') await postarTextoWhatsApp(c, mensagem)
       else await postarTexto(mensagem, c.destino)
       return { ok: true }
@@ -156,6 +157,5 @@ servirCockpit(
     wa_grupos: ({ nome }: { nome: string }) => listarGrupos(obrigatorio(nome, 'nome')),
     wa_desconectar: ({ nome }: { nome: string }) => desconectarInstancia(obrigatorio(nome, 'nome')),
     wa_apagar: ({ nome }: { nome: string }) => apagarInstancia(obrigatorio(nome, 'nome')),
-  },
-  chaveOk
+  }
 );
