@@ -88,16 +88,16 @@ export function expirarAntigas(dias) {
 
 /** Config editada no cockpit (tabela config, chave 'robo'); sem ela, vale o config.json. */
 export async function configDoBanco() {
-  const linhas = await chamar('config?chave=eq.robo&select=valor');
+  const linhas = await chamar('cockpit_config?chave=eq.robo&select=valor');
   return linhas[0]?.valor || null;
 }
 
 export function canaisAtivos() {
-  return chamar('canais?ativo=eq.true&order=criado_em');
+  return chamar('cockpit_canais?ativo=eq.true&order=criado_em');
 }
 
 export async function canal(id) {
-  const linhas = await chamar(`canais?id=eq.${encodeURIComponent(id)}`);
+  const linhas = await chamar(`cockpit_canais?id=eq.${encodeURIComponent(id)}`);
   if (!linhas[0]) throw new Error('Canal nao encontrado');
   return linhas[0];
 }
@@ -113,13 +113,13 @@ export function candidatasDoCanal(canalId, keywords, limite = 200) {
 /** Ultimos posts do canal, mais novo primeiro, com a busca da oferta (pra alternar categoria). */
 export function ultimosDoCanal(canalId, quantidade = 15) {
   return chamar(
-    `envios?canal_id=eq.${canalId}&status=eq.enviado&order=criado_em.desc&limit=${quantidade}` +
+    `cockpit_envios?canal_id=eq.${canalId}&status=eq.enviado&order=criado_em.desc&limit=${quantidade}` +
       '&select=criado_em,origem,ofertas(keyword)'
   );
 }
 
 export function registrarEnvio({ canalId, itemId = null, tipo = 'oferta', status, erro = null, origem }) {
-  return chamar('envios', {
+  return chamar('cockpit_envios', {
     method: 'POST',
     headers: { Prefer: 'return=minimal' },
     body: JSON.stringify({
@@ -135,12 +135,12 @@ export function registrarEnvio({ canalId, itemId = null, tipo = 'oferta', status
 
 export async function lerSegredos(chaves) {
   const lista = chaves.map((c) => `"${c}"`).join(',');
-  const linhas = await chamar(`segredos?chave=in.(${encodeURIComponent(lista)})&select=chave,valor`);
+  const linhas = await chamar(`cockpit_segredos?chave=in.(${encodeURIComponent(lista)})&select=chave,valor`);
   return Object.fromEntries(linhas.map((l) => [l.chave, l.valor]));
 }
 
 export function gravarSegredo(chave, valor) {
-  return chamar('segredos?on_conflict=chave', {
+  return chamar('cockpit_segredos?on_conflict=chave', {
     method: 'POST',
     headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
     body: JSON.stringify({ chave, valor, atualizado_em: new Date().toISOString() }),
@@ -155,6 +155,6 @@ export async function ofertaPorId(itemId) {
 
 /** E-mail que pode usar o cockpit (tabela admins). */
 export async function ehAdmin(email) {
-  const linhas = await chamar(`admins?email=eq.${encodeURIComponent(String(email).toLowerCase())}&select=email`);
+  const linhas = await chamar(`cockpit_admins?email=eq.${encodeURIComponent(String(email).toLowerCase())}&select=email`);
   return linhas.length > 0;
 }
