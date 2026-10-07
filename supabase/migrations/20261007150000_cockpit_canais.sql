@@ -5,7 +5,7 @@
 --   * ajustes ganha a chave 'robo' (o config.json, editavel pela tela) se ainda nao tiver
 --   * funcao candidatas_do_canal: a fila de cada canal
 -- Ninguem le essas tabelas pelo navegador: a tela passa pela Edge Function "cockpit",
--- que confere a chave do cockpit (Vault: cockpit_chave) e usa a service_role.
+-- que usa a service_role (cockpit sem senha por enquanto).
 
 create table if not exists public.canais (
   id                 uuid primary key default gen_random_uuid(),
@@ -85,9 +85,9 @@ as $$
     and not exists (
       select 1 from public.envios e where e.item_id = o.item_id and e.canal_id = p_canal and e.ok
     )
-    and (
+    and 2 > (
       select count(*) from public.envios e where e.item_id = o.item_id and e.canal_id = p_canal and not e.ok
-    ) < 2
+    )
   order by o.prioridade desc, o.score desc
   limit p_limite
 $$;
