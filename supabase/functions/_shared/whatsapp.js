@@ -93,6 +93,7 @@ export function postarTextoWhatsApp(canal, texto) {
 /** Foto + legenda; se a Evolution recusar a imagem, vai so o texto (com previa do link). */
 export async function postarOfertaWhatsApp(canal, oferta) {
   if (!canal.instancia || !canal.destino) throw new Error('Canal de WhatsApp sem instancia ou grupo escolhido');
+  if (!String(canal.instancia).toLowerCase().startsWith('achadinhos')) throw new Error('Numero fora do Achadinhos: o robo nao posta por ele');
 
   const legenda = montarMensagem(oferta, 'whatsapp');
 

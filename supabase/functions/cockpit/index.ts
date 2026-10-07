@@ -17,6 +17,15 @@ import {
   qrDaInstancia,
 } from '../_shared/whatsapp.js';
 
+// O servidor da Evolution e o da agencia (chave global). O cockpit, que esta sem senha, so enxerga
+// e mexe em numeros cujo nome comeca com "achadinhos": os da agencia ficam fora de alcance.
+const PREFIXO = 'achadinhos'
+const doAchadinhos = (nome: unknown) => String(nome || '').toLowerCase().startsWith(PREFIXO)
+function numeroDoAchadinhos(nome: unknown) {
+  if (!doAchadinhos(nome)) throw new Error(`So numeros com nome comecando em "${PREFIXO}" podem ser usados pelo cockpit`)
+  return String(nome)
+}
+
 const obrigatorio = (valor: unknown, nome: string) => {
   if (valor === undefined || valor === null || valor === '') throw new Error(`Falta ${nome}`);
   return valor;
@@ -85,6 +94,7 @@ servirCockpit(
     async canal_salvar({ canal: c }: { canal: Record<string, unknown> }) {
       const { id, criado_em: _c, ...dados } = obrigatorio(c, 'canal') as Record<string, unknown>
       if (Array.isArray(dados.horarios)) dados.horarios = [...new Set(dados.horarios as string[])].sort()
+      if (dados.instancia) numeroDoAchadinhos(dados.instancia)
       if (id) {
         await chamar(`canais?id=eq.${enc(id as string)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(dados) })
         return { ok: true }
@@ -139,7 +149,8 @@ servirCockpit(
       const s = await lerSegredos(['evolution_url', 'evolution_apikey'])
       if (!s.evolution_url || !s.evolution_apikey) return { configurada: false }
       try {
-        return { configurada: true, url: s.evolution_url, instancias: await listarInstancias() }
+        const todas = await listarInstancias()
+        return { configurada: true, url: s.evolution_url, prefixo: PREFIXO, instancias: todas.filter((i: { nome: string }) => doAchadinhos(i.nome)) }
       } catch (erro) {
         return { configurada: true, url: s.evolution_url, erro: (erro as Error).message, instancias: [] }
       }
@@ -148,14 +159,15 @@ servirCockpit(
     async evolution_salvar({ url, apikey }: { url: string; apikey?: string }) {
       await gravarSegredo('evolution_url', String(obrigatorio(url, 'url')).trim().replace(/\/$/, ''))
       if (apikey) await gravarSegredo('evolution_apikey', String(apikey).trim())
-      return { ok: true, instancias: await listarInstancias() }
+      const todas = await listarInstancias()
+      return { ok: true, instancias: todas.filter((i: { nome: string }) => doAchadinhos(i.nome)) }
     },
 
-    wa_criar: ({ nome }: { nome: string }) => criarInstancia(obrigatorio(nome, 'nome')),
-    wa_qr: ({ nome }: { nome: string }) => qrDaInstancia(obrigatorio(nome, 'nome')),
-    wa_estado: async ({ nome }: { nome: string }) => ({ estado: await estadoDaInstancia(obrigatorio(nome, 'nome')) }),
-    wa_grupos: ({ nome }: { nome: string }) => listarGrupos(obrigatorio(nome, 'nome')),
-    wa_desconectar: ({ nome }: { nome: string }) => desconectarInstancia(obrigatorio(nome, 'nome')),
-    wa_apagar: ({ nome }: { nome: string }) => apagarInstancia(obrigatorio(nome, 'nome')),
+    wa_criar: ({ nome }: { nome: string }) => criarInstancia(numeroDoAchadinhos(nome)),
+    wa_qr: ({ nome }: { nome: string }) => qrDaInstancia(numeroDoAchadinhos(nome)),
+    wa_estado: async ({ nome }: { nome: string }) => ({ estado: await estadoDaInstancia(numeroDoAchadinhos(nome)) }),
+    wa_grupos: ({ nome }: { nome: string }) => listarGrupos(numeroDoAchadinhos(nome)),
+    wa_desconectar: ({ nome }: { nome: string }) => desconectarInstancia(numeroDoAchadinhos(nome)),
+    wa_apagar: ({ nome }: { nome: string }) => apagarInstancia(numeroDoAchadinhos(nome)),
   }
 );
