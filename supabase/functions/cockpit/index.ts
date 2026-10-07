@@ -87,8 +87,9 @@ servirCockpit(
 
     // ---------------------------------------------------------------- acoes que ja existem no banco
     // fixar, desafixar, pular, voltar, bloquear_produto, bloquear_loja, desbloquear, pausar, retomar
-    oferta_acao: ({ acao, alvo, valor }: { acao: string; alvo?: string; valor?: string }) =>
-      acaoNoBanco(obrigatorio(acao, 'acao') as string, alvo ?? null, valor ?? null),
+    // "operacao" (e nao "acao"): o campo "acao" do corpo ja e o nome desta rota
+    oferta_acao: ({ operacao, alvo, valor }: { operacao: string; alvo?: string; valor?: string }) =>
+      acaoNoBanco(obrigatorio(operacao, 'operacao') as string, alvo ?? null, valor ?? null),
 
     // ---------------------------------------------------------------- canais e config
     async canal_salvar({ canal: c }: { canal: Record<string, unknown> }) {
