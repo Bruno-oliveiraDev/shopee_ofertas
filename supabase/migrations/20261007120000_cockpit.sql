@@ -6,12 +6,12 @@
 -- ---------------------------------------------------------------------------
 -- Quem entra no cockpit
 -- ---------------------------------------------------------------------------
-create table if not exists public.cockpit_admins (
+create table if not exists public.admins (
   email     text primary key,
   criado_em timestamptz not null default now()
 );
-alter table public.cockpit_admins enable row level security;
-insert into public.cockpit_admins (email) values ('smartmiles4.0@gmail.com') on conflict do nothing;
+alter table public.admins enable row level security;
+insert into public.admins (email) values ('smartmiles4.0@gmail.com') on conflict do nothing;
 
 create or replace function public.eh_admin()
 returns boolean
@@ -20,18 +20,18 @@ stable
 security definer
 set search_path = public
 as $$
-  select exists (select 1 from public.cockpit_admins where email = lower(auth.jwt() ->> 'email'))
+  select exists (select 1 from public.admins where email = lower(auth.jwt() ->> 'email'))
 $$;
 revoke execute on function public.eh_admin() from public, anon;
 grant execute on function public.eh_admin() to authenticated, service_role;
 
-drop policy if exists admins_le on public.cockpit_admins;
-create policy admins_le on public.cockpit_admins for select to authenticated using (public.eh_admin());
+drop policy if exists admins_le on public.admins;
+create policy admins_le on public.admins for select to authenticated using (public.eh_admin());
 
 -- ---------------------------------------------------------------------------
 -- Canais
 -- ---------------------------------------------------------------------------
-create table if not exists public.cockpit_canais (
+create table if not exists public.canais (
   id                 uuid primary key default gen_random_uuid(),
   nome               text not null,
   tipo               text not null check (tipo in ('telegram', 'whatsapp')),
@@ -46,14 +46,14 @@ create table if not exists public.cockpit_canais (
   ofertas_por_rodada int not null default 1 check (ofertas_por_rodada between 1 and 5),
   criado_em          timestamptz not null default now()
 );
-alter table public.cockpit_canais enable row level security;
+alter table public.canais enable row level security;
 
 -- ---------------------------------------------------------------------------
 -- Envios: uma linha por post (ou tentativa) em cada canal
 -- ---------------------------------------------------------------------------
-create table if not exists public.cockpit_envios (
+create table if not exists public.envios (
   id        bigint generated always as identity primary key,
-  canal_id  uuid not null references public.cockpit_canais (id) on delete cascade,
+  canal_id  uuid not null references public.canais (id) on delete cascade,
   item_id   text references public.ofertas (item_id) on delete set null,
   tipo      text not null default 'oferta',      -- oferta | top
   status    text not null check (status in ('enviado', 'falha')),
@@ -61,42 +61,42 @@ create table if not exists public.cockpit_envios (
   origem    text not null default 'agendador',   -- agendador | cockpit | github
   criado_em timestamptz not null default now()
 );
-alter table public.cockpit_envios enable row level security;
+alter table public.envios enable row level security;
 
-create index if not exists cockpit_envios_canal_idx on public.cockpit_envios (canal_id, criado_em desc);
-create index if not exists cockpit_envios_item_idx on public.cockpit_envios (item_id, canal_id);
-create index if not exists cockpit_envios_data_idx on public.cockpit_envios (criado_em desc);
+create index if not exists envios_canal_idx on public.envios (canal_id, criado_em desc);
+create index if not exists envios_item_idx on public.envios (item_id, canal_id);
+create index if not exists envios_data_idx on public.envios (criado_em desc);
 
 -- ---------------------------------------------------------------------------
 -- Config editavel (chave 'robo' = o antigo config.json, sem os horarios, que agora sao do canal)
 -- ---------------------------------------------------------------------------
-create table if not exists public.cockpit_config (
+create table if not exists public.config (
   chave         text primary key,
   valor         jsonb not null,
   atualizado_em timestamptz not null default now()
 );
-alter table public.cockpit_config enable row level security;
+alter table public.config enable row level security;
 
 -- Segredos das integracoes (url e apikey da Evolution). Sem policy: so a Edge Function le.
-create table if not exists public.cockpit_segredos (
+create table if not exists public.segredos (
   chave         text primary key,
   valor         text not null,
   atualizado_em timestamptz not null default now()
 );
-alter table public.cockpit_segredos enable row level security;
+alter table public.segredos enable row level security;
 
 -- ---------------------------------------------------------------------------
 -- Acesso do dono pela tela (o robo usa service_role e ignora RLS)
 -- ---------------------------------------------------------------------------
-drop policy if exists canais_admin on public.cockpit_canais;
-create policy canais_admin on public.cockpit_canais for all to authenticated
+drop policy if exists canais_admin on public.canais;
+create policy canais_admin on public.canais for all to authenticated
   using (public.eh_admin()) with check (public.eh_admin());
 
-drop policy if exists envios_admin on public.cockpit_envios;
-create policy envios_admin on public.cockpit_envios for select to authenticated using (public.eh_admin());
+drop policy if exists envios_admin on public.envios;
+create policy envios_admin on public.envios for select to authenticated using (public.eh_admin());
 
-drop policy if exists config_admin on public.cockpit_config;
-create policy config_admin on public.cockpit_config for all to authenticated
+drop policy if exists config_admin on public.config;
+create policy config_admin on public.config for all to authenticated
   using (public.eh_admin()) with check (public.eh_admin());
 
 drop policy if exists ofertas_admin_le on public.ofertas;
@@ -114,8 +114,8 @@ do $$
 declare
   v_canal uuid;
 begin
-  if not exists (select 1 from public.cockpit_canais where tipo = 'telegram') then
-    insert into public.cockpit_canais (nome, tipo, ativo, destino_nome, horarios, ofertas_por_rodada)
+  if not exists (select 1 from public.canais where tipo = 'telegram') then
+    insert into public.canais (nome, tipo, ativo, destino_nome, horarios, ofertas_por_rodada)
     values (
       'Telegram · Achadinhos Kid', 'telegram', true, 'Achadinhos Kid',
       array(
@@ -127,7 +127,7 @@ begin
     )
     returning id into v_canal;
 
-    insert into public.cockpit_envios (canal_id, item_id, tipo, status, origem, criado_em)
+    insert into public.envios (canal_id, item_id, tipo, status, origem, criado_em)
     select v_canal, item_id, 'oferta', 'enviado', 'agendador', enviada_em
     from public.ofertas
     where status = 'enviada' and enviada_em is not null;
@@ -153,11 +153,11 @@ as $$
   where o.status = 'pendente'
     and o.keyword = any (p_keywords)
     and not exists (
-      select 1 from public.cockpit_envios e
+      select 1 from public.envios e
       where e.item_id = o.item_id and e.canal_id = p_canal and e.status = 'enviado'
     )
     and (
-      select count(*) from public.cockpit_envios e
+      select count(*) from public.envios e
       where e.item_id = o.item_id and e.canal_id = p_canal and e.status = 'falha'
     ) < 2
   order by o.score desc
@@ -220,7 +220,7 @@ revoke execute on function public.cockpit_agendador() from public, anon;
 grant execute on function public.cockpit_agendador() to authenticated;
 
 -- Config de hoje (o config.json do robo, sem a grade de horarios)
-insert into public.cockpit_config (chave, valor) values ('robo', $cfg${
+insert into public.config (chave, valor) values ('robo', $cfg${
   "endpoint": "https://open-api.affiliate.shopee.com.br/graphql",
   "categorias": {
     "roupa": [
