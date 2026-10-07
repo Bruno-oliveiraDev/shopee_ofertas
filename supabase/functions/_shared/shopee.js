@@ -101,7 +101,7 @@ export function normalizar(produto, keyword) {
 }
 
 /** Minusculo e sem acento, pra comparar "Erótico" com "erotico". */
-const simplificar = (texto) =>
+export const simplificar = (texto) =>
   String(texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 /** Motivo de a oferta ficar de fora (vai pro log da coleta), ou null se passou. */
@@ -112,6 +112,13 @@ export function motivoReprovacao(linha, filtros) {
   const nome = simplificar(linha.nome);
   const bloqueadas = filtros.palavrasBloqueadas || [];
   if (bloqueadas.some((p) => nome.includes(simplificar(p)))) return 'palavra bloqueada';
+
+  // nicho: cada grupo de "exigir" precisa ter pelo menos 1 termo no nome.
+  // Ex.: roupa = [["body","calca","macacao"...], ["bebe","infantil","rn"...]] -> "Body manga longa bebe" passa,
+  // "Calca fisiologica para caes" nao passa (nao tem termo de bebe).
+  for (const grupo of filtros.exigir || []) {
+    if (grupo.length && !grupo.some((p) => nome.includes(simplificar(p)))) return 'fora do nicho';
+  }
 
   // produto infantil sem nota ou com nota baixa nao entra
   if (filtros.notaMinima && !(linha.nota >= filtros.notaMinima)) return 'nota baixa';

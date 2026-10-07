@@ -126,9 +126,9 @@ export async function ultimosDoCanal(canalId, quantidade = 15) {
     `envios?canal_id=eq.${canalId}&ok=is.true&order=enviado_em.desc&limit=${quantidade}&select=item_id,enviado_em,origem`
   );
   const ids = [...new Set(envios.map((e) => e.item_id))].map((i) => `"${i}"`).join(',');
-  const ofertas = ids ? await chamar(`ofertas?item_id=in.(${encodeURIComponent(ids)})&select=item_id,keyword`) : [];
-  const keyword = Object.fromEntries(ofertas.map((o) => [o.item_id, o.keyword]));
-  return envios.map((e) => ({ ...e, keyword: keyword[e.item_id] ?? null }));
+  const ofertas = ids ? await chamar(`ofertas?item_id=in.(${encodeURIComponent(ids)})&select=item_id,keyword,nome`) : [];
+  const dados = Object.fromEntries(ofertas.map((o) => [o.item_id, o]));
+  return envios.map((e) => ({ ...e, keyword: dados[e.item_id]?.keyword ?? null, nome: dados[e.item_id]?.nome ?? null }));
 }
 
 export function registrarEnvio({ canal, itemId = null, tipo = 'oferta', ok, erro = null, origem, msgId = null }) {

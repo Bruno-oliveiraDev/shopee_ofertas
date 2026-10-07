@@ -1,10 +1,8 @@
 import { buscarOfertas, normalizar, motivoReprovacao } from './shopee.js';
 import { abastecerFila, expirarAntigas, registrarColetas } from './db.js';
-import { todasKeywords, categoriaDe } from './selecao.js';
+import { todasKeywords, categoriaDe, filtrosDe } from './selecao.js';
 
-// fralda de marca paga 2-3% de comissao e quase nao tem desconto: com o filtro geral nao entrava nenhuma.
-// config.filtrosPorCategoria troca so os limites daquela categoria, o resto vem de config.filtros.
-const filtrosDe = (cfg, keyword) => ({ ...cfg.filtros, ...(cfg.filtrosPorCategoria?.[categoriaDe(cfg, keyword)] || {}) });
+// config.filtrosPorCategoria troca so os limites daquela categoria (e o "exigir" do nicho); o resto vem de config.filtros.
 
 const pausa = (ms) => new Promise((r) => setTimeout(r, ms));
 

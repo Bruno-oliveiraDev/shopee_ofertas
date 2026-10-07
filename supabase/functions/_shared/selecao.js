@@ -87,3 +87,34 @@ export function escolher(cfg, candidatas, recentes, quantidade, agora = agoraBra
 
   return escolhidas;
 }
+
+/** Limites da coleta para a busca: os gerais com os da categoria por cima (config.filtrosPorCategoria). */
+export const filtrosDe = (cfg, keyword) => ({ ...cfg.filtros, ...(cfg.filtrosPorCategoria?.[categoriaDe(cfg, keyword)] || {}) });
+
+// palavras que nao ajudam a dizer se dois anuncios sao o mesmo produto
+const VAZIAS = new Set(['para', 'com', 'sem', 'kit', 'pecas', 'peca', 'unidades', 'unidade', 'und', 'pcs', 'pct', 'pacote',
+  'bebe', 'bebes', 'infantil', 'infantis', 'crianca', 'criancas', 'menino', 'menina', 'unissex', 'baby', 'novo', 'nova',
+  'promocao', 'oferta', 'original', 'qualidade', 'premium', 'envio', 'imediato', 'pronta', 'entrega', 'atacado', 'cores', 'cor']);
+
+const simples = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+/** Palavras que identificam o produto (sem numero, medida e palavra vazia). */
+export function assinatura(nome) {
+  return new Set(
+    simples(nome)
+      .split(/[^a-z]+/)
+      .filter((p) => p.length >= 3 && !VAZIAS.has(p))
+      .slice(0, 8)
+  );
+}
+
+/**
+ * Dois anuncios sao "o mesmo produto" quando a maior parte das palavras do menor aparece no outro.
+ * Pega "20 Protetor de Silicone de Mesa Quina" x "Kit 12 Protetor Quina de Mesa em Silicone".
+ */
+export function parecidos(a, b) {
+  if (!a.size || !b.size) return false;
+  let comuns = 0;
+  for (const p of a) if (b.has(p)) comuns++;
+  return comuns / Math.min(a.size, b.size) >= 0.6;
+}
