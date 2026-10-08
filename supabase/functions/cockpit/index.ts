@@ -98,6 +98,18 @@ servirCockpit(
 
     vendas_atualizar: () => sincronizarVendas(),
 
+    // ---------------------------------------------------------------- videos (gerados todo dia no GitHub Actions)
+    videos: () => chamar('videos?order=dia.desc,id.desc&limit=60'),
+
+    async video_postado({ id, postado = true }: { id: number; postado?: boolean }) {
+      await chamar(`videos?id=eq.${enc(String(obrigatorio(id, 'id')))}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({ postado_em: postado ? new Date().toISOString() : null }),
+      })
+      return { ok: true }
+    },
+
     // mesmo valor em todos os dias de "de" ate "ate" (um dia so: de = ate). valor 0 apaga.
     async investimento_salvar({ de, ate, valor, nota }: { de: string; ate?: string; valor: number; nota?: string }) {
       const ini = new Date(`${obrigatorio(de, 'de')}T12:00:00Z`)

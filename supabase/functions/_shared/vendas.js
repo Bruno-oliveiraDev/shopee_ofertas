@@ -86,8 +86,10 @@ export function linhaDaVenda(c) {
     : 'pendente';
 
   // "wa-roupa-h2005-c58e6e" -> canal, categoria, horario (venda de link sem subId fica sem origem)
-  const [canal, categoria, horario] = String(c.utmContent || '').split('-');
-  const deUmPost = canal === 'wa' || canal === 'tg';
+  // "vd-roupa-d1008" e o link do video do dia (nao tem horario)
+  const [canal, categoria, marca] = String(c.utmContent || '').split('-');
+  const deUmPost = canal === 'wa' || canal === 'tg' || canal === 'vd';
+  const horario = marca?.startsWith('h') ? marca : null;
 
   const iso = (s) => (s ? new Date(Number(s) * 1000).toISOString() : null);
   return {
