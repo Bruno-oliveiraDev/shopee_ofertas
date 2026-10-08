@@ -3,6 +3,7 @@ import { postarOferta, postarTexto, montarMensagem, montarTopDoDia } from './tel
 import { postarOfertaWhatsApp, postarTextoWhatsApp } from './whatsapp.js';
 import { agoraBrasilia, assinatura, campanhaAtiva, categoriaDe, escolher, filtrosDe, parecidos, todasKeywords } from './selecao.js';
 import { motivoReprovacao } from './shopee.js';
+import { linkComSubId, subIdsDoPost } from './vendas.js';
 
 const pausa = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -16,6 +17,12 @@ const DIAS_SEM_REPETIR_PRODUTO = 5;
 export function horarioDaRodada(agora = agoraBrasilia()) {
   const minuto = Math.floor(agora.minuto / 5) * 5;
   return `${String(agora.hora).padStart(2, '0')}:${String(minuto).padStart(2, '0')}`;
+}
+
+/** Troca o link de cada oferta pelo link com subId deste canal/horario (a venda volta dizendo de onde veio). */
+async function comSubId(cfg, canal, ofertas, agora) {
+  const horario = horarioDaRodada(agora);
+  for (const o of ofertas) o.link = await linkComSubId(o, subIdsDoPost(canal, o.categoria ?? categoriaDe(cfg, o.keyword), horario));
 }
 
 const formatoDo = (canal) => (canal.tipo === 'whatsapp' ? 'whatsapp' : 'html');
@@ -80,6 +87,7 @@ export async function dispararNoCanal(cfg, canal, { teste = false, origem = 'age
 
   if (oferta) {
     oferta.categoria = categoriaDe(cfg, oferta.keyword);
+    await comSubId(cfg, canal, [oferta], agora);
     if (teste) return { ...base, enviadas: 0, mensagens: [montarMensagem(oferta, formato)] };
     try {
       const msgId = await postar(canal, oferta);
@@ -138,6 +146,7 @@ export async function dispararNoCanal(cfg, canal, { teste = false, origem = 'age
       .slice(0, TOP_DO_DIA);
 
     if (presentes.length >= 3) {
+      await comSubId(cfg, canal, presentes, agora);
       const texto = montarTopDoDia(presentes, campanha, formato);
       if (teste) return { ...base, enviadas: 0, top: presentes.map((o) => o.nome), mensagens: [texto] };
 
@@ -157,6 +166,8 @@ export async function dispararNoCanal(cfg, canal, { teste = false, origem = 'age
 
   // a categoria decide se o preco por unidade aparece (brinquedo nao tem)
   for (const o of fila) o.categoria = categoriaDe(cfg, o.keyword);
+
+  await comSubId(cfg, canal, fila, agora);
 
   const resumo = (o) => ({ item_id: o.item_id, categoria: o.categoria, nome: o.nome, preco: o.preco, fixada: o.prioridade > 0 });
 

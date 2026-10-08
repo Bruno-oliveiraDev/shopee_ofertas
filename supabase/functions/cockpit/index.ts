@@ -5,6 +5,7 @@ import { carregarConfig } from '../_shared/config.js';
 import { acaoNoBanco, canal, chamar, gravarSegredo, lerSegredos, ofertaPorId, pausas } from '../_shared/db.js';
 import { dispararNoCanal } from '../_shared/disparo.js';
 import { coletar } from '../_shared/coleta.js';
+import { sincronizarVendas } from '../_shared/vendas.js';
 import { infoDoChat, postarTexto } from '../_shared/telegram.js';
 import {
   apagarInstancia,
@@ -84,6 +85,39 @@ servirCockpit(
     bloqueios: () => chamar('bloqueios?order=criado_em.desc'),
     historico_acoes: () => chamar('cockpit_acoes?order=feito_em.desc&limit=60'),
     saude: () => chamar('rpc/cockpit_saude', { method: 'POST', body: '{}' }),
+
+    // ---------------------------------------------------------------- retorno (investido x comissao)
+    // investimento e digitado na tela; as vendas vem da Shopee de hora em hora (ou no botao)
+    async retorno() {
+      const [investimentos, vendas] = await Promise.all([
+        chamar('investimentos?order=dia'),
+        chamar('vendas?select=conversion_id,compra_em,situacao,comissao,comissao_confirmada,valor_pedido,itens,canal,categoria,horario,pedidos&order=compra_em.desc&limit=2000'),
+      ])
+      return { investimentos, vendas }
+    },
+
+    vendas_atualizar: () => sincronizarVendas(),
+
+    // mesmo valor em todos os dias de "de" ate "ate" (um dia so: de = ate). valor 0 apaga.
+    async investimento_salvar({ de, ate, valor, nota }: { de: string; ate?: string; valor: number; nota?: string }) {
+      const ini = new Date(`${obrigatorio(de, 'de')}T12:00:00Z`)
+      const fim = new Date(`${ate || de}T12:00:00Z`)
+      if (isNaN(ini.getTime()) || isNaN(fim.getTime()) || fim < ini) throw new Error('Datas invalidas')
+      const dias: string[] = []
+      for (const d = new Date(ini); d <= fim && dias.length <= 400; d.setUTCDate(d.getUTCDate() + 1)) dias.push(d.toISOString().slice(0, 10))
+      const v = Number(valor)
+      if (!(v >= 0)) throw new Error('Valor invalido')
+      if (v === 0) {
+        await chamar(`investimentos?dia=in.(${dias.join(',')})`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } })
+      } else {
+        await chamar('investimentos?on_conflict=dia', {
+          method: 'POST',
+          headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+          body: JSON.stringify(dias.map((dia) => ({ dia, valor: v, nota: nota || null, atualizado_em: new Date().toISOString() }))),
+        })
+      }
+      return { ok: true, dias: dias.length }
+    },
 
     // ---------------------------------------------------------------- acoes que ja existem no banco
     // fixar, desafixar, pular, voltar, bloquear_produto, bloquear_loja, desbloquear, pausar, retomar
