@@ -174,8 +174,6 @@ function legenda(turno, ofertas) {
     'Preço da Shopee muda rápido.',
     '',
     HASHTAGS,
-    '',
-    'Links de afiliado: posso ganhar comissão, sem custo extra pra você.',
   ].join('\n');
 }
 

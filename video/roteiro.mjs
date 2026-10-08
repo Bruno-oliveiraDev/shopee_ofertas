@@ -114,8 +114,6 @@ export function textoDoPost(oferta) {
     'Preço da Shopee muda rápido, corre.',
     '',
     `${HASHTAGS[oferta.categoria] || '#achadinhos'} #achadinhos #shopee #achadosshopee`,
-    '',
-    'Link de afiliado: posso ganhar comissão, sem custo extra pra você.',
   ]
     .filter((l, i, a) => !(l === '' && a[i - 1] === ''))
     .join('\n');
