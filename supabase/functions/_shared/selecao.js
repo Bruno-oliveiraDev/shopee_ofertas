@@ -88,8 +88,15 @@ export function escolher(cfg, candidatas, recentes, quantidade, agora = agoraBra
   return escolhidas;
 }
 
-/** Limites da coleta para a busca: os gerais com os da categoria por cima (config.filtrosPorCategoria). */
-export const filtrosDe = (cfg, keyword) => ({ ...cfg.filtros, ...(cfg.filtrosPorCategoria?.[categoriaDe(cfg, keyword)] || {}) });
+/**
+ * Limites da coleta para a busca: os gerais com os da categoria por cima (config.filtrosPorCategoria).
+ * O "exigir" SOMA: o geral (ser de bebe/crianca) vale sempre, o da categoria vem junto.
+ * Se substituisse, "chupeta" so exigiria a palavra chupeta e o cabo de chupeta de bateria passaria.
+ */
+export function filtrosDe(cfg, keyword) {
+  const daCategoria = cfg.filtrosPorCategoria?.[categoriaDe(cfg, keyword)] || {};
+  return { ...cfg.filtros, ...daCategoria, exigir: [...(cfg.filtros?.exigir || []), ...(daCategoria.exigir || [])] };
+}
 
 // palavras que nao ajudam a dizer se dois anuncios sao o mesmo produto
 const VAZIAS = new Set(['para', 'com', 'sem', 'kit', 'pecas', 'peca', 'unidades', 'unidade', 'und', 'pcs', 'pct', 'pacote',
