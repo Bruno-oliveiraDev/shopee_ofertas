@@ -6,6 +6,7 @@ import { acaoNoBanco, canal, chamar, gravarSegredo, lerSegredos, ofertaPorId, pa
 import { dispararNoCanal } from '../_shared/disparo.js';
 import { coletar } from '../_shared/coleta.js';
 import { sincronizarVendas } from '../_shared/vendas.js';
+import { medirMembros } from '../_shared/membros.js';
 import { infoDoChat, postarTexto } from '../_shared/telegram.js';
 import {
   apagarInstancia,
@@ -98,9 +99,10 @@ servirCockpit(
 
     vendas_atualizar: () => sincronizarVendas(),
 
-    // ---------------------------------------------------------------- pagina /bio da LP (publica: continua aberta mesmo se o cockpit ganhar senha)
+    // ---------------------------------------------------------------- funis: LP (anuncio/site) e /bio (instagram/tiktok)
+    // bio_clique e publica (a LP chama): continua aberta mesmo se o cockpit ganhar senha
     async bio_clique({ de, destino }: { de?: string; destino?: string }) {
-      const rede = ['instagram', 'tiktok'].includes(String(de)) ? String(de) : 'outro'
+      const rede = ['instagram', 'tiktok', 'anuncio', 'site'].includes(String(de)) ? String(de) : 'outro'
       if (!['visita', 'whatsapp', 'telegram'].includes(String(destino))) throw new Error('Destino invalido')
       await chamar('bio_cliques', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ de: rede, destino }) })
       return { ok: true }
@@ -111,6 +113,34 @@ servirCockpit(
       const [ultimo] = await chamar('carrosseis?select=dia,turno,slides&order=dia.desc,turno.desc&limit=1')
       return { achados: (ultimo?.slides || []).slice(1, -1).map((s: { feed: string }) => s.feed) }
     },
+
+    /** Cliques por funil e dia + tamanho dos grupos + gasto em anuncio, pra pagina Funis. */
+    async funis({ desde }: { desde: string }) {
+      obrigatorio(desde, 'desde')
+      const cliques: { em: string; de: string; destino: string }[] = []
+      for (let i = 0; i < 100; i++) {
+        const lote = await chamar(`bio_cliques?select=em,de,destino&em=gte.${enc(desde)}&order=id&offset=${i * 1000}&limit=1000`)
+        cliques.push(...lote)
+        if (lote.length < 1000) break
+      }
+      const [canais, investimentos] = await Promise.all([
+        chamar('canais?select=id,nome,tipo,ativo&order=criado_em'),
+        chamar(`investimentos?dia=gte.${enc(desde.slice(0, 10))}`),
+      ])
+      // por grupo: ultima medicao antes do periodo (base) e todas as do periodo
+      const membros = await Promise.all(
+        canais.map(async (c: { id: string }) => {
+          const [antes, durante] = await Promise.all([
+            chamar(`membros?select=medido_em,membros&canal_id=eq.${c.id}&medido_em=lt.${enc(desde)}&order=medido_em.desc&limit=1`),
+            chamar(`membros?select=medido_em,membros&canal_id=eq.${c.id}&medido_em=gte.${enc(desde)}&order=medido_em&limit=2000`),
+          ])
+          return { canal_id: c.id, base: antes[0] ?? null, medicoes: durante }
+        })
+      )
+      return { cliques, canais, membros, investimentos }
+    },
+
+    membros_medir: () => medirMembros(),
 
     async bio_resumo({ dias = 30 }: { dias?: number }) {
       const desde = new Date(Date.now() - Number(dias) * 86400e3).toISOString()
