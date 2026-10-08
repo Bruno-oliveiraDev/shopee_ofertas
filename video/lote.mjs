@@ -3,16 +3,17 @@
 // O cockpit lista pra baixar e postar. Tudo nosso: FFmpeg + Piper, sem servico pago.
 //
 // Uso: node video/lote.mjs [quantidade]
-// Variaveis: SUPABASE_URL, SUPABASE_SERVICE_KEY, SHOPEE_APP_ID, SHOPEE_APP_SECRET + as do gerar-video.mjs
+// Variaveis: SUPABASE_URL, SUPABASE_SERVICE_KEY, SHOPEE_APP_ID, SHOPEE_APP_SECRET
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { gerarVideo } from './gerar-video.mjs';
+import { chromium, gerarArte } from './gerar-arte.mjs';
+import { textoDoPost } from './roteiro.mjs';
 
 const BASE = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const CHAVE = process.env.SUPABASE_SERVICE_KEY;
-const QUANTIDADE = Number(process.argv[2] || process.env.QUANTIDADE || 3);
+const QUANTIDADE = Number(process.argv[2] || process.env.QUANTIDADE || 5);
 const BUCKET = 'videos';
 
 async function banco(caminho, opcoes = {}) {
@@ -60,7 +61,7 @@ async function escolher() {
   const desde = new Date(Date.now() - 2 * 86400e3).toISOString();
   const campos = 'item_id,shop_id,nome,preco,preco_de,desconto,vendas,nota,imagem,link,categoria,score';
   const [enviadas, feitos] = await Promise.all([
-    banco(`ofertas?select=${campos}&status=eq.enviada&enviada_em=gte.${desde}&imagem=not.is.null&order=score.desc&limit=200`),
+    banco(`ofertas?select=${campos}&status=eq.enviada&enviada_em=gte.${desde}&imagem=not.is.null&categoria=not.is.null&order=score.desc&limit=200`),
     banco(`videos?select=item_id&criado_em=gte.${new Date(Date.now() - 30 * 86400e3).toISOString()}`),
   ]);
   const jaTem = new Set(feitos.map((v) => v.item_id));
@@ -77,18 +78,17 @@ async function escolher() {
 if (!BASE || !CHAVE) throw new Error('Defina SUPABASE_URL e SUPABASE_SERVICE_KEY');
 const dia = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
 const ofertas = await escolher();
-console.log(`${ofertas.length} oferta(s) pra video em ${dia}`);
+console.log(`${ofertas.length} oferta(s) pra arte em ${dia}`);
+const navegador = await (await chromium()).launch();
 
 let feitos = 0;
 for (const oferta of ofertas) {
-  const pasta = path.resolve('saida-videos', oferta.item_id);
+  const pasta = path.resolve('saida-artes', oferta.item_id);
   try {
-    const r = await gerarVideo(oferta, pasta);
-    execFileSync('ffmpeg', ['-y', '-v', 'error', '-ss', '1.5', '-i', r.video, '-frames:v', '1', '-vf', 'scale=540:-2', '-q:v', '4', path.join(pasta, 'capa.jpg')]);
-
+    const arte = await gerarArte(oferta, pasta, navegador);
     const nome = `${dia}/${oferta.item_id}`;
-    const url = await subir(`${nome}.mp4`, r.video, 'video/mp4');
-    const capa = await subir(`${nome}.jpg`, path.join(pasta, 'capa.jpg'), 'image/jpeg');
+    const url = await subir(`${nome}-story.jpg`, arte.story, 'image/jpeg');
+    const feed = await subir(`${nome}-feed.jpg`, arte.feed, 'image/jpeg');
     const link = await linkDoVideo(oferta, dia);
 
     await banco('videos?on_conflict=dia,item_id', {
@@ -96,15 +96,16 @@ for (const oferta of ofertas) {
       headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
       body: JSON.stringify({
         dia, item_id: oferta.item_id, nome: oferta.nome, categoria: oferta.categoria, preco: oferta.preco, preco_de: oferta.preco_de,
-        desconto: oferta.desconto, url, capa, legenda: r.post, link, duracao: Number(r.duracao.toFixed(1)),
+        desconto: oferta.desconto, formato: 'arte', url, capa: feed, url_feed: feed, legenda: textoDoPost(oferta), link, duracao: null,
       }),
     });
     feitos++;
-    console.log(`ok  ${oferta.item_id}  ${r.duracao.toFixed(1)}s  ${oferta.nome.slice(0, 60)}`);
+    console.log(`ok  ${oferta.item_id}  ${oferta.nome.slice(0, 60)}`);
   } catch (erro) {
     console.error(`ERRO ${oferta.item_id}: ${erro.message}`);
   }
 }
 
-console.log(`${feitos}/${ofertas.length} video(s) prontos`);
+await navegador.close();
+console.log(`${feitos}/${ofertas.length} arte(s) prontas`);
 if (ofertas.length && !feitos) process.exit(1);

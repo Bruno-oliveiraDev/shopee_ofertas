@@ -1,7 +1,8 @@
-name: Gerar videos do dia
+name: Gerar artes do dia
 
-# Todo dia as 07h (Brasilia) gera os videos das melhores ofertas que foram pro grupo nos ultimos 2 dias
-# e deixa no cockpit (aba Videos) pra baixar e postar. Tudo gratis: FFmpeg + voz Piper.
+# Todo dia as 07h (Brasilia) gera as artes (story + feed) das melhores ofertas que foram pro grupo
+# nos ultimos 2 dias e deixa no cockpit (aba Artes) pra baixar e postar. Tudo nosso: HTML + Chromium.
+# (O arquivo se chama videos.yml porque o 1o formato era video; trocado pela arte em 08/10.)
 
 on:
   schedule:
@@ -9,18 +10,18 @@ on:
   workflow_dispatch:
     inputs:
       quantidade:
-        description: 'Quantos videos'
+        description: 'Quantas artes'
         required: false
-        default: '3'
+        default: '5'
 
 concurrency:
   group: videos
   cancel-in-progress: false
 
 jobs:
-  videos:
+  artes:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
@@ -29,45 +30,22 @@ jobs:
         with:
           node-version: '20'
 
-      - name: FFmpeg
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null && ffmpeg -version | head -1
-
-      - name: Voz e fontes (guardadas no cache depois da 1a vez)
-        id: cache
-        uses: actions/cache@v4
-        with:
-          path: ferramentas
-          key: piper-2023.11.14-2-faber-medium-poppins-v1
-
-      - name: Baixar voz e fontes
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p ferramentas && cd ferramentas
-          curl -sSL https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz | tar xz
-          V=https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/pt/pt_BR/faber/medium
-          curl -sSL -o voz.onnx "$V/pt_BR-faber-medium.onnx"
-          curl -sSL -o voz.onnx.json "$V/pt_BR-faber-medium.onnx.json"
-          curl -sSL -o forte.ttf https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-ExtraBold.ttf
-          curl -sSL -o media.ttf https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-SemiBold.ttf
-          ls -la . piper | head -30
+      - name: Chromium (Playwright)
+        run: npm install --no-save --no-audit --no-fund playwright@1.48.2 && npx playwright install --with-deps chromium
 
       - name: Gerar e publicar
-        run: node video/lote.mjs "${{ inputs.quantidade || '3' }}"
+        run: node video/lote.mjs "${{ inputs.quantidade || '5' }}"
         env:
-          PIPER_BIN: ${{ github.workspace }}/ferramentas/piper/piper
-          PIPER_VOICE: ${{ github.workspace }}/ferramentas/voz.onnx
-          FONTE_FORTE: ${{ github.workspace }}/ferramentas/forte.ttf
-          FONTE_MEDIA: ${{ github.workspace }}/ferramentas/media.ttf
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           SHOPEE_APP_ID: ${{ secrets.SHOPEE_APP_ID }}
           SHOPEE_APP_SECRET: ${{ secrets.SHOPEE_APP_SECRET }}
 
-      - name: Guardar os videos tambem aqui (7 dias)
+      - name: Guardar as artes tambem aqui (7 dias)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: videos
-          path: saida-videos/*/video.mp4
+          name: artes
+          path: saida-artes
           if-no-files-found: ignore
           retention-days: 7

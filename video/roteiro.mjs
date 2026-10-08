@@ -10,15 +10,39 @@ function falaDoPreco(v) {
   return centavos ? `${reais} reais e ${centavos}` : `${reais} reais`;
 }
 
-/** Nome curto e limpo: sem medidas, codigos e repeticao de palavra-chave (o nome da Shopee e enorme). */
-export function nomeCurto(nome) {
-  const limpo = String(nome)
-    .replace(/\[[^\]]*\]|\([^)]*\)/g, ' ')
-    .replace(/\b\d+([.,/]\d+)*\s*(cm|mm|m|ml|g|kg|pçs|pcs|un|und|unidades)?\b/gi, ' ')
-    .replace(/[-–|+/]/g, ' ')
+// palavra de anuncio que nao diz nada do produto
+const ENCHIMENTO = /(?<![a-zà-ú])(promo[cç][aã]o|oferta|premium|original|envio (imediato|r[aá]pido|sortido)|pronta entrega|sortido|sortida|lan[cç]amento|atacado|barato|top|novo|nova)(?![a-zà-ú])/gi;
+
+const LIGACOES = new Set(['de', 'do', 'da', 'dos', 'das', 'e', 'com', 'para', 'p', 'em', 'ou', 'a', 'o', 'no', 'na']);
+
+/**
+ * Nome curto e limpo: sem medidas, codigos e numeros soltos (o nome da Shopee e enorme).
+ * "Kit de 4, 2 e 1 Conjunto Infantil Pijama..." -> "Kit Conjunto Infantil Pijama Manga Longa"
+ * (antes sobrava "Kit de , e Conjunto", que saiu na tela e na voz).
+ */
+export function nomeCurto(nome, maxCaracteres = 44) {
+  let limpo = String(nome)
+    .replace(/\[[^\]]*\]|\([^)]*\)|【[^】]*】/g, ' ')
+    .replace(/(\bde\s+)?\d+(\s*[,/x]\s*\d+)*(\s*(e|ou)\s*\d+)?\s*(cm|mm|m|ml|l|g|kg|pçs|pcs|peças|pecas|pç|un|und|unid|unidades|meses|anos)?(?![a-zà-ú])/gi, ' ')
+    .replace(ENCHIMENTO, ' ')
+    .replace(/[-–|+/,;:.!*%]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-  const palavras = limpo.split(' ').slice(0, 6);
+
+  // nome TODO EM MAIUSCULA vira normal
+  const letras = limpo.replace(/[^A-Za-zÀ-ú]/g, '');
+  if (letras && letras === letras.toUpperCase()) limpo = limpo.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase());
+
+  // tira ligacao repetida ("de e") e corta sem estourar o tamanho
+  const palavras = [];
+  for (const p of limpo.split(' ')) {
+    if (LIGACOES.has(p.toLowerCase()) && (!palavras.length || LIGACOES.has(palavras.at(-1).toLowerCase()))) continue;
+    if ([...palavras, p].join(' ').length > maxCaracteres) break;
+    palavras.push(p);
+  }
+  // nao termina em "de", "com", "para"...
+  // nem em ligacao ("de", "com") nem em tamanho solto ("RN P M G")
+  while (palavras.length > 2 && (LIGACOES.has(palavras.at(-1).toLowerCase()) || palavras.at(-1).length <= 2)) palavras.pop();
   return palavras.join(' ');
 }
 
@@ -83,7 +107,7 @@ export function textoDoPost(oferta) {
   return [
     `${nomeCurto(oferta.nome)} 👶`,
     '',
-    temDe ? `❌ De R$ ${brl(oferta.preco_de)}\n🔥 Por R$ ${brl(oferta.preco)} (-${oferta.desconto}%)` : `🔥 Por R$ ${brl(oferta.preco)}`,
+    temDe ? `❌ De R$ ${brl(oferta.preco_de)}\n🔥 A partir de R$ ${brl(oferta.preco)} (-${oferta.desconto}%)` : `🔥 A partir de R$ ${brl(oferta.preco)}`,
     oferta.nota ? `⭐ ${String(oferta.nota).replace('.', ',')} · +${Number(oferta.vendas).toLocaleString('pt-BR')} vendidos` : '',
     '',
     '👉 O link tá no grupo Achadinhos Kids: entra pelo link da bio!',
