@@ -33,7 +33,8 @@ async function subir(nome, arquivo, tipo) {
     body: await readFile(arquivo),
   });
   if (!r.ok) throw new Error(`Storage respondeu ${r.status}: ${(await r.text()).slice(0, 300)}`);
-  return `${BASE}/storage/v1/object/public/${BUCKET}/${nome}`;
+  // ?v= troca a cada geracao: arte refeita no mesmo caminho nao fica presa no cache do celular
+  return `${BASE}/storage/v1/object/public/${BUCKET}/${nome}?v=${Date.now()}`;
 }
 
 /** Link curto com subId "vd-categoria-dMMDD": a venda que vier do video aparece no Retorno como Video. */
