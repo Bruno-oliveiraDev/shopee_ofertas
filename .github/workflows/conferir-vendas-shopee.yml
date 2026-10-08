@@ -1,0 +1,37 @@
+name: Conferir relatorio de vendas da Shopee
+
+# Pergunta a API de afiliados o que ela devolve sobre vendas (conversionReport).
+# O repo e publico: o log mostra so nomes de campos e contagens, nunca valores nem chaves.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  conferir:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Perguntar a Shopee
+        run: |
+          chamar() {
+            PAYLOAD=$(jq -cn --arg q "$1" '{query:$q}')
+            TS=$(date +%s)
+            SIG=$(printf '%s' "${APP_ID}${TS}${PAYLOAD}${APP_SECRET}" | sha256sum | cut -d' ' -f1)
+            curl -s https://open-api.affiliate.shopee.com.br/graphql -H 'Content-Type: application/json' \
+              -H "Authorization: SHA256 Credential=${APP_ID}, Timestamp=${TS}, Signature=${SIG}" -d "$PAYLOAD"
+          }
+          echo "--- consultas que a API oferece ---"
+          chamar '{__schema{queryType{fields{name args{name}}}}}' | jq -c '.errors // [.data.__schema.queryType.fields[] | {nome: .name, args: [.args[].name]}][]'
+          echo "--- campos de uma venda (conversionReport) ---"
+          for T in ConversionReport ConversionReportOrder ConversionReportOrderItem; do
+            echo "$T:"; chamar "{__type(name:\"$T\"){fields{name}}}" | jq -c '.errors // [.data.__type.fields[]?.name]'
+          done
+          echo "--- vendas dos ultimos 90 dias (so contagem) ---"
+          FIM=$(date +%s); INI=$((FIM - 89*86400))
+          chamar "{conversionReport(purchaseTimeStart:${INI},purchaseTimeEnd:${FIM},limit:500){nodes{conversionId orders{orderStatus}} pageInfo{hasNextPage}}}" \
+            | jq -c '.errors // {vendas: (.data.conversionReport.nodes|length), pedidos_por_status: ([.data.conversionReport.nodes[].orders[].orderStatus] | group_by(.) | map({(.[0]): length}) | add), tem_mais: .data.conversionReport.pageInfo.hasNextPage}'
+          echo "--- link curto com subId (generateShortLink) ---"
+          chamar 'mutation{generateShortLink(input:{originUrl:"https://shopee.com.br",subIds:["teste"]}){shortLink}}' | jq -c '.errors // {funciona: (.data.generateShortLink.shortLink != null)}'
+        env:
+          APP_ID: ${{ secrets.SHOPEE_APP_ID }}
+          APP_SECRET: ${{ secrets.SHOPEE_APP_SECRET }}
