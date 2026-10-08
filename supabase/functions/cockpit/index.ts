@@ -98,6 +98,18 @@ servirCockpit(
 
     vendas_atualizar: () => sincronizarVendas(),
 
+    // ---------------------------------------------------------------- carrosseis (12h e 20h, gerados no GitHub Actions)
+    carrosseis: () => chamar('carrosseis?order=dia.desc,turno.desc&limit=20'),
+
+    async carrossel_postado({ id, postado = true }: { id: number; postado?: boolean }) {
+      await chamar(`carrosseis?id=eq.${enc(String(obrigatorio(id, 'id')))}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({ postado_em: postado ? new Date().toISOString() : null }),
+      })
+      return { ok: true }
+    },
+
     // ---------------------------------------------------------------- videos (gerados todo dia no GitHub Actions)
     videos: () => chamar('videos?order=dia.desc,id.desc&limit=60'),
 

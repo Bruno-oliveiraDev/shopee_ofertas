@@ -9,7 +9,7 @@ import path from 'node:path';
 import { nomeCurto } from './roteiro.mjs';
 
 // moldura por categoria: fundo (borda com bolinhas), forte (faixa do preco) e escuro (texto)
-const CORES = {
+export const CORES = {
   roupa: { fundo: '#FFB8CE', forte: '#E8457A', escuro: '#4A0D25' },
   fralda: { fundo: '#AFDBFF', forte: '#2A86DB', escuro: '#0A2F54' },
   enxoval: { fundo: '#D3C6FF', forte: '#7655EE', escuro: '#25175E' },
@@ -20,13 +20,13 @@ const CORES = {
   geral: { fundo: '#FFB8CE', forte: '#E8457A', escuro: '#4A0D25' },
 };
 
-const TAMANHOS = {
+export const TAMANHOS = {
   story: { w: 1080, h: 1920, borda: 44, raio: 64, nome: 82, linhas: 3, preco: 190, faixa: 400, marca: 30, pad: 70 },
   feed: { w: 1080, h: 1350, borda: 34, raio: 52, nome: 62, linhas: 2, preco: 140, faixa: 280, marca: 24, pad: 54 },
 };
 
-const brl = (v) => Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+export const brl = (v) => Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
 async function chromium() {
   try {
@@ -42,8 +42,8 @@ async function chromium() {
  * Moldura: borda colorida com bolinhas + tela branca arredondada. Dentro: marca e nome em cima,
  * produto grande no branco (as fotos da Shopee ja tem fundo branco) e faixa do preco com onda embaixo.
  */
-function html(oferta, t, fotoDataUrl) {
-  const cor = CORES[oferta.categoria] || CORES.geral;
+export function html(oferta, t, fotoDataUrl, { cor: corFixa, numero } = {}) {
+  const cor = corFixa || CORES[oferta.categoria] || CORES.geral;
   const temDe = oferta.preco_de && oferta.preco_de > oferta.preco;
   const [reais, centavos] = brl(oferta.preco).split(',');
   const selo = Math.round(t.preco * 1.25);
@@ -81,6 +81,9 @@ function html(oferta, t, fotoDataUrl) {
   .por{font-size:${t.preco}px;font-weight:800;letter-spacing:-3px;white-space:nowrap;line-height:.95;text-shadow:0 6px 0 rgba(0,0,0,.12)}
   .por small{font-size:.36em;letter-spacing:0;vertical-align:.95em;margin-right:8px}
   .por sup{font-size:.42em;letter-spacing:0;vertical-align:.9em}
+  .numero{position:absolute;left:${Math.round(t.pad * 0.6)}px;top:${Math.round(t.pad * 0.2)}px;width:${Math.round(selo * 0.62)}px;height:${Math.round(selo * 0.62)}px;
+    border-radius:50%;background:${cor.forte};color:#fff;display:flex;align-items:center;justify-content:center;font-size:${Math.round(selo * 0.36)}px;font-weight:800;
+    box-shadow:0 8px 0 rgba(0,0,0,.12)}
 </style></head><body>
   <div class="tela">
     <div class="topo">
@@ -89,6 +92,7 @@ function html(oferta, t, fotoDataUrl) {
     </div>
     <div class="foto">
       <img src="${fotoDataUrl}">
+      ${numero ? `<div class="numero">${numero}</div>` : ''}
       ${oferta.desconto > 0 ? `<div class="selo"><b>-${Math.round(oferta.desconto)}%</b><span>OFF</span></div>` : ''}
     </div>
     <div class="faixa">
@@ -103,25 +107,38 @@ function html(oferta, t, fotoDataUrl) {
 </body></html>`;
 }
 
-/** Gera story.jpg e feed.jpg na pasta. Recebe um navegador aberto pra reaproveitar no lote. */
-export async function gerarArte(oferta, pasta, navegador) {
-  await mkdir(pasta, { recursive: true });
-  const foto = await fetch(oferta.imagem);
+/** Foto da oferta embutida no HTML (data URL): o print nao depende de a Shopee responder durante a renderizacao. */
+export async function fotoEmbutida(url) {
+  const foto = await fetch(url);
   if (!foto.ok) throw new Error(`Foto da oferta nao baixou (${foto.status})`);
   const tipo = foto.headers.get('content-type') || 'image/jpeg';
-  const dataUrl = `data:${tipo};base64,${Buffer.from(await foto.arrayBuffer()).toString('base64')}`;
+  return `data:${tipo};base64,${Buffer.from(await foto.arrayBuffer()).toString('base64')}`;
+}
+
+/** Tira o print de um HTML no tamanho t e salva em arquivo (jpg). */
+export async function renderizar(nav, conteudo, t, arquivo) {
+  const pagina = await nav.newPage({ viewport: { width: t.w, height: t.h } });
+  try {
+    await pagina.setContent(conteudo, { waitUntil: 'networkidle' });
+    await pagina.evaluate(() => document.fonts.ready);
+    await pagina.screenshot({ path: arquivo, type: 'jpeg', quality: 90 });
+  } finally {
+    await pagina.close();
+  }
+  return arquivo;
+}
+
+/** Gera story.jpg e feed.jpg na pasta. Recebe um navegador aberto pra reaproveitar no lote. */
+export async function gerarArte(oferta, pasta, navegador, opcoes = {}) {
+  await mkdir(pasta, { recursive: true });
+  const dataUrl = await fotoEmbutida(oferta.imagem);
 
   const proprio = !navegador;
   const nav = navegador || (await (await chromium()).launch());
   const saidas = {};
   try {
     for (const [nome, t] of Object.entries(TAMANHOS)) {
-      const pagina = await nav.newPage({ viewport: { width: t.w, height: t.h } });
-      await pagina.setContent(html(oferta, t, dataUrl), { waitUntil: 'networkidle' });
-      await pagina.evaluate(() => document.fonts.ready);
-      saidas[nome] = path.join(pasta, `${nome}.jpg`);
-      await pagina.screenshot({ path: saidas[nome], type: 'jpeg', quality: 90 });
-      await pagina.close();
+      saidas[nome] = await renderizar(nav, html(oferta, t, dataUrl, opcoes), t, path.join(pasta, `${nome}.jpg`));
     }
   } finally {
     if (proprio) await nav.close();

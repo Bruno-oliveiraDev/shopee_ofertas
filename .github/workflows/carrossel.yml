@@ -1,0 +1,51 @@
+name: Gerar carrossel
+
+# 2 carrosseis por dia (5 imagens cada), prontos 1 hora antes de postar:
+#   11h de Brasilia -> carrossel das 12h ("Achadinhos ate R$ X")
+#   19h de Brasilia -> carrossel das 20h ("Os mais vendidos pro bebe")
+
+on:
+  schedule:
+    - cron: '0 14 * * *'
+    - cron: '0 22 * * *'
+  workflow_dispatch:
+    inputs:
+      turno:
+        description: 'Turno (vazio = pela hora)'
+        required: false
+        type: choice
+        options: ['', '12h', '20h']
+
+concurrency:
+  group: carrossel
+  cancel-in-progress: false
+
+jobs:
+  carrossel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Chromium (Playwright)
+        run: npm install --no-save --no-audit --no-fund playwright@1.48.2 && npx playwright install --with-deps chromium
+
+      - name: Gerar e publicar
+        run: node video/carrossel.mjs "${{ inputs.turno }}"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+      - name: Guardar tambem aqui (7 dias)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: carrossel
+          path: saida-carrossel
+          if-no-files-found: ignore
+          retention-days: 7
