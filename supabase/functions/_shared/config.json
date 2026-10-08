@@ -80,7 +80,58 @@
       "sensual",
       "+18",
       "usado",
-      "seminovo"
+      "seminovo",
+      "pets",
+      "pet fisiologic",
+      "para cao",
+      "do cao",
+      "caes",
+      "para cachorro",
+      "para gato",
+      "felino",
+      "canino",
+      "para animais",
+      "animais de estimacao",
+      "animal de estimacao",
+      "fisiologic",
+      "geriatric",
+      "bateria automotiva",
+      "chupeta de bateria",
+      "cabo auxiliar",
+      "booster",
+      "automotiv",
+      "veicular"
+    ],
+    "exigir": [
+      [
+        "bebe",
+        "baby",
+        "babies",
+        "infantil",
+        "infantis",
+        "crianca",
+        "kid",
+        "menin",
+        "rn",
+        "recem nascido",
+        "recem-nascido",
+        "maternidade",
+        "enxoval",
+        "berco",
+        "brinquedo",
+        "montessori",
+        "mordedor",
+        "chocalho",
+        "fralda",
+        "pagao",
+        "mijao",
+        "toddler",
+        "massinha",
+        "umedecid",
+        "copo treinamento",
+        "copo de treinamento",
+        "transicao"
+      ]
     ]
   },
   "disparo": {
@@ -128,6 +179,17 @@
     "fralda": {
       "comissaoMinima": 0.02,
       "descontoMinimo": 3
+    },
+    "seguranca": {
+      "exigir": [
+        [
+          "quina",
+          "tomada",
+          "canto",
+          "cantoneira",
+          "trava"
+        ]
+      ]
     }
   }
 }

@@ -104,6 +104,14 @@ export function normalizar(produto, keyword) {
 export const simplificar = (texto) =>
   String(texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
+const escapar = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * O termo aparece no comeco de uma palavra do nome: "cao" pega "Cão" mas nao "proteção",
+ * "rn" pega "RN" mas nao "inverno", "menin" pega "menino" e "menina".
+ */
+export const temTermo = (nome, termo) => new RegExp(`(^|[^a-z0-9])${escapar(simplificar(termo))}`).test(nome);
+
 /** Motivo de a oferta ficar de fora (vai pro log da coleta), ou null se passou. */
 export function motivoReprovacao(linha, filtros) {
   if (!linha.link || !linha.preco) return 'sem link ou preco';
@@ -111,13 +119,13 @@ export function motivoReprovacao(linha, filtros) {
   // grupo de pais: qualquer termo bloqueado no nome derruba a oferta
   const nome = simplificar(linha.nome);
   const bloqueadas = filtros.palavrasBloqueadas || [];
-  if (bloqueadas.some((p) => nome.includes(simplificar(p)))) return 'palavra bloqueada';
+  if (bloqueadas.some((p) => temTermo(nome, p))) return 'palavra bloqueada';
 
   // nicho: cada grupo de "exigir" precisa ter pelo menos 1 termo no nome.
   // Ex.: roupa = [["body","calca","macacao"...], ["bebe","infantil","rn"...]] -> "Body manga longa bebe" passa,
-  // "Calca fisiologica para caes" nao passa (nao tem termo de bebe).
+  // "Cabo Auxiliar Chupeta De Bateria" nao passa (busca "chupeta", mas nao tem termo de bebe).
   for (const grupo of filtros.exigir || []) {
-    if (grupo.length && !grupo.some((p) => nome.includes(simplificar(p)))) return 'fora do nicho';
+    if (grupo.length && !grupo.some((p) => temTermo(nome, p))) return 'fora do nicho';
   }
 
   // produto infantil sem nota ou com nota baixa nao entra
