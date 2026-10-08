@@ -8,21 +8,21 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { nomeCurto } from './roteiro.mjs';
 
-// moldura por categoria: o feed fica colorido e cada assunto tem a sua cor
+// moldura por categoria: fundo (borda com bolinhas), forte (faixa do preco) e escuro (texto)
 const CORES = {
-  roupa: { fundo: '#FF8FB1', escuro: '#7A1238' },
-  fralda: { fundo: '#7CC4FF', escuro: '#0B3D6B' },
-  enxoval: { fundo: '#B9A4FF', escuro: '#35217A' },
-  higiene: { fundo: '#6FD8C0', escuro: '#0B5446' },
-  alimentacao: { fundo: '#FFC861', escuro: '#6B4300' },
-  brinquedo: { fundo: '#FF9F6B', escuro: '#7A2E05' },
-  seguranca: { fundo: '#9BDB7A', escuro: '#25560E' },
-  geral: { fundo: '#FF8FB1', escuro: '#7A1238' },
+  roupa: { fundo: '#FFB8CE', forte: '#E8457A', escuro: '#4A0D25' },
+  fralda: { fundo: '#AFDBFF', forte: '#2A86DB', escuro: '#0A2F54' },
+  enxoval: { fundo: '#D3C6FF', forte: '#7655EE', escuro: '#25175E' },
+  higiene: { fundo: '#AEEBDC', forte: '#14A07D', escuro: '#08463A' },
+  alimentacao: { fundo: '#FFE2A0', forte: '#E0860B', escuro: '#5A3600' },
+  brinquedo: { fundo: '#FFC9AB', forte: '#F0662A', escuro: '#5E2304' },
+  seguranca: { fundo: '#C6ECAF', forte: '#3F9E22', escuro: '#1D460B' },
+  geral: { fundo: '#FFB8CE', forte: '#E8457A', escuro: '#4A0D25' },
 };
 
 const TAMANHOS = {
-  story: { w: 1080, h: 1920, foto: 820, nome: 74, linhas: 3, preco: 150, topo: 150, base: 170 },
-  feed: { w: 1080, h: 1350, foto: 620, nome: 54, linhas: 2, preco: 112, topo: 60, base: 60 },
+  story: { w: 1080, h: 1920, borda: 44, raio: 64, nome: 82, linhas: 3, preco: 190, faixa: 400, marca: 30, pad: 70 },
+  feed: { w: 1080, h: 1350, borda: 34, raio: 52, nome: 62, linhas: 2, preco: 140, faixa: 280, marca: 24, pad: 54 },
 };
 
 const brl = (v) => Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -38,48 +38,67 @@ async function chromium() {
   }
 }
 
+/**
+ * Moldura: borda colorida com bolinhas + tela branca arredondada. Dentro: marca e nome em cima,
+ * produto grande no branco (as fotos da Shopee ja tem fundo branco) e faixa do preco com onda embaixo.
+ */
 function html(oferta, t, fotoDataUrl) {
   const cor = CORES[oferta.categoria] || CORES.geral;
   const temDe = oferta.preco_de && oferta.preco_de > oferta.preco;
   const [reais, centavos] = brl(oferta.preco).split(',');
+  const selo = Math.round(t.preco * 1.25);
   return `<!doctype html><html><head><meta charset="utf-8">
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800;900&display=block" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Poppins:wght@600;700;800&display=block" rel="stylesheet">
 <style>
   *{margin:0;box-sizing:border-box}
-  body{width:${t.w}px;height:${t.h}px;background:${cor.fundo};font-family:Poppins,sans-serif;overflow:hidden;
-    display:flex;flex-direction:column;align-items:center;justify-content:space-between;gap:28px;padding:${t.topo}px 70px ${t.base}px}
-  .marca{font-size:${Math.round(t.nome * 0.42)}px;font-weight:700;color:${cor.escuro};background:#fff;border-radius:999px;padding:8px 26px;letter-spacing:.5px}
-  h1{font-size:${t.nome}px;line-height:1.12;font-weight:800;color:${cor.escuro};text-align:center;margin-top:${Math.round(t.nome * 0.4)}px;
+  body{width:${t.w}px;height:${t.h}px;overflow:hidden;font-family:'Baloo 2',Poppins,sans-serif;padding:${t.borda}px;
+    background-color:${cor.fundo};
+    background-image:radial-gradient(rgba(255,255,255,.55) 5px,transparent 6px),radial-gradient(rgba(255,255,255,.3) 3px,transparent 4px);
+    background-size:64px 64px,64px 64px;background-position:0 0,32px 32px}
+  .tela{position:relative;height:100%;background:#fff;border-radius:${t.raio}px;overflow:hidden;display:flex;flex-direction:column;
+    box-shadow:0 18px 40px -16px rgba(0,0,0,.28)}
+  .topo{padding:${t.pad}px ${t.pad}px 0;text-align:center}
+  .marca{display:inline-flex;align-items:center;gap:12px;font-family:Poppins,sans-serif;font-size:${t.marca}px;font-weight:800;letter-spacing:3px;
+    color:${cor.forte}}
+  .marca i{width:${t.marca * 0.5}px;height:${t.marca * 0.5}px;border-radius:50%;background:${cor.forte};display:inline-block}
+  h1{margin-top:${Math.round(t.pad * 0.3)}px;font-size:${t.nome}px;line-height:1.02;font-weight:800;color:${cor.escuro};
     display:-webkit-box;-webkit-line-clamp:${t.linhas};-webkit-box-orient:vertical;overflow:hidden;text-wrap:balance}
-  .topo{display:flex;flex-direction:column;align-items:center;width:100%}
-  .cartao{position:relative;width:${t.foto}px;height:${t.foto}px;background:#fff;border-radius:56px;padding:28px;
-    box-shadow:0 30px 60px -20px rgba(0,0,0,.35)}
-  .cartao img{width:100%;height:100%;object-fit:contain;border-radius:32px}
-  .selo{position:absolute;top:-34px;right:-34px;width:${Math.round(t.foto * 0.27)}px;height:${Math.round(t.foto * 0.27)}px;border-radius:50%;
-    background:#EE2D4D;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;transform:rotate(10deg);
-    box-shadow:0 12px 24px -8px rgba(0,0,0,.4);border:8px solid #fff}
-  .selo b{font-size:${Math.round(t.foto * 0.085)}px;font-weight:900;line-height:1}
-  .selo span{font-size:${Math.round(t.foto * 0.04)}px;font-weight:800;line-height:1.1}
-  .preco{background:#fff;border-radius:44px;padding:26px 56px 30px;text-align:center;box-shadow:0 20px 40px -18px rgba(0,0,0,.3)}
-  .de{font-size:${Math.round(t.preco * 0.3)}px;font-weight:600;color:#8A8A99}
-  .de s{text-decoration-color:#EE2D4D;text-decoration-thickness:4px}
-  .apartir{font-size:${Math.round(t.preco * 0.22)}px;font-weight:700;color:${cor.escuro};text-transform:uppercase;letter-spacing:2px;margin-top:4px}
-  .por{font-size:${t.preco}px;font-weight:900;color:#0E9F5B;line-height:1;letter-spacing:-2px;white-space:nowrap}
-  .por small{font-size:.42em;letter-spacing:0;vertical-align:.9em;margin-right:6px}
-  .por sup{font-size:.45em;vertical-align:.85em;letter-spacing:0}
+  .foto{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:${Math.round(t.pad * 0.5)}px ${t.pad}px}
+  .foto img{max-width:100%;max-height:100%;object-fit:contain;border-radius:24px}
+  .selo{position:absolute;right:${Math.round(t.pad * 0.6)}px;top:${Math.round(t.pad * 0.2)}px;width:${selo}px;height:${selo}px;border-radius:50%;
+    background:#FFD23F;color:${cor.escuro};display:flex;flex-direction:column;align-items:center;justify-content:center;transform:rotate(12deg);
+    box-shadow:0 10px 0 rgba(0,0,0,.12)}
+  .selo b{font-size:${Math.round(selo * 0.34)}px;font-weight:800;line-height:.9;letter-spacing:-1px}
+  .selo span{font-family:Poppins,sans-serif;font-size:${Math.round(selo * 0.13)}px;font-weight:800;letter-spacing:2px}
+  .faixa{position:relative;height:${t.faixa}px;background:${cor.forte};color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding-top:${Math.round(t.faixa * 0.08)}px}
+  .onda{position:absolute;left:0;right:0;top:-${Math.round(t.faixa * 0.12) - 1}px;height:${Math.round(t.faixa * 0.12)}px;width:100%}
+  .de{font-family:Poppins,sans-serif;font-size:${Math.round(t.preco * 0.2)}px;font-weight:600;opacity:.85}
+  .de s{text-decoration-thickness:3px}
+  .linha{display:flex;align-items:center;gap:${Math.round(t.preco * 0.1)}px;line-height:1}
+  .apartir{font-family:Poppins,sans-serif;font-size:${Math.round(t.preco * 0.17)}px;font-weight:800;letter-spacing:1px;text-transform:uppercase;
+    text-align:right;line-height:1.15;opacity:.95}
+  .por{font-size:${t.preco}px;font-weight:800;letter-spacing:-3px;white-space:nowrap;line-height:.95;text-shadow:0 6px 0 rgba(0,0,0,.12)}
+  .por small{font-size:.36em;letter-spacing:0;vertical-align:.95em;margin-right:8px}
+  .por sup{font-size:.42em;letter-spacing:0;vertical-align:.9em}
 </style></head><body>
-  <div class="topo">
-    <div class="marca">ACHADINHOS KIDS</div>
-    <h1>${esc(nomeCurto(oferta.nome, t.linhas === 3 ? 50 : 40))}</h1>
-  </div>
-  <div class="cartao">
-    <img src="${fotoDataUrl}">
-    ${oferta.desconto > 0 ? `<div class="selo"><b>-${Math.round(oferta.desconto)}%</b><span>OFF</span></div>` : ''}
-  </div>
-  <div class="preco">
-    ${temDe ? `<div class="de">de <s>R$ ${brl(oferta.preco_de)}</s></div>` : ''}
-    <div class="apartir">a partir de</div>
-    <div class="por"><small>R$</small>${reais}<sup>,${centavos}</sup></div>
+  <div class="tela">
+    <div class="topo">
+      <div class="marca"><i></i>ACHADINHOS KIDS<i></i></div>
+      <h1>${esc(nomeCurto(oferta.nome, t.linhas === 3 ? 50 : 40))}</h1>
+    </div>
+    <div class="foto">
+      <img src="${fotoDataUrl}">
+      ${oferta.desconto > 0 ? `<div class="selo"><b>-${Math.round(oferta.desconto)}%</b><span>OFF</span></div>` : ''}
+    </div>
+    <div class="faixa">
+      <svg class="onda" viewBox="0 0 1000 100" preserveAspectRatio="none"><path d="M0,60 C160,0 340,0 500,50 C660,100 840,100 1000,40 L1000,100 L0,100 Z" fill="${cor.forte}"/></svg>
+      ${temDe ? `<div class="de">de <s>R$ ${brl(oferta.preco_de)}</s> por</div>` : ''}
+      <div class="linha">
+        <div class="apartir">a partir<br>de</div>
+        <div class="por"><small>R$</small>${reais}<sup>,${centavos}</sup></div>
+      </div>
+    </div>
   </div>
 </body></html>`;
 }
