@@ -98,6 +98,37 @@ servirCockpit(
 
     vendas_atualizar: () => sincronizarVendas(),
 
+    // ---------------------------------------------------------------- pagina /bio da LP (publica: continua aberta mesmo se o cockpit ganhar senha)
+    async bio_clique({ de, destino }: { de?: string; destino?: string }) {
+      const rede = ['instagram', 'tiktok'].includes(String(de)) ? String(de) : 'outro'
+      if (!['visita', 'whatsapp', 'telegram'].includes(String(destino))) throw new Error('Destino invalido')
+      await chamar('bio_cliques', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ de: rede, destino }) })
+      return { ok: true }
+    },
+
+    /** Os 3 produtos do carrossel mais recente, pra pagina /bio mostrar "achados de hoje". */
+    async bio_achados() {
+      const [ultimo] = await chamar('carrosseis?select=dia,turno,slides&order=dia.desc,turno.desc&limit=1')
+      return { achados: (ultimo?.slides || []).slice(1, -1).map((s: { feed: string }) => s.feed) }
+    },
+
+    async bio_resumo({ dias = 30 }: { dias?: number }) {
+      const desde = new Date(Date.now() - Number(dias) * 86400e3).toISOString()
+      const linhas: { de: string; destino: string }[] = []
+      // pagina de 1000 em 1000 (teto do PostgREST)
+      for (let i = 0; i < 50; i++) {
+        const lote = await chamar(`bio_cliques?select=de,destino&em=gte.${enc(desde)}&order=id&offset=${i * 1000}&limit=1000`)
+        linhas.push(...lote)
+        if (lote.length < 1000) break
+      }
+      const resumo: Record<string, Record<string, number>> = {}
+      for (const l of linhas) {
+        resumo[l.de] ??= { visita: 0, whatsapp: 0, telegram: 0 }
+        resumo[l.de][l.destino] = (resumo[l.de][l.destino] || 0) + 1
+      }
+      return { dias: Number(dias), resumo }
+    },
+
     // ---------------------------------------------------------------- carrosseis (12h e 20h, gerados no GitHub Actions)
     carrosseis: () => chamar('carrosseis?order=dia.desc,turno.desc&limit=20'),
 
