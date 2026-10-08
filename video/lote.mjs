@@ -77,7 +77,14 @@ async function escolher() {
 
 if (!BASE || !CHAVE) throw new Error('Defina SUPABASE_URL e SUPABASE_SERVICE_KEY');
 const dia = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
-const ofertas = await escolher();
+// REFAZER=sim: gera de novo as artes que ja existem no dia (ex.: depois de mudar o design)
+async function jaDoDia() {
+  const feitos = await banco(`videos?select=item_id&dia=eq.${dia}`);
+  if (!feitos.length) return [];
+  const ids = feitos.map((v) => `"${v.item_id}"`).join(',');
+  return banco(`ofertas?select=item_id,shop_id,nome,preco,preco_de,desconto,vendas,nota,imagem,link,categoria,score&item_id=in.(${encodeURIComponent(ids)})`);
+}
+const ofertas = process.env.REFAZER === 'sim' ? await jaDoDia() : await escolher();
 console.log(`${ofertas.length} oferta(s) pra arte em ${dia}`);
 const navegador = await (await chromium()).launch();
 

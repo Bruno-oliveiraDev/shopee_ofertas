@@ -13,6 +13,10 @@ on:
         description: 'Quantas artes'
         required: false
         default: '5'
+      refazer:
+        description: 'Refazer as artes de hoje (depois de mudar o design)'
+        type: boolean
+        default: false
 
 concurrency:
   group: videos
@@ -40,6 +44,7 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           SHOPEE_APP_ID: ${{ secrets.SHOPEE_APP_ID }}
           SHOPEE_APP_SECRET: ${{ secrets.SHOPEE_APP_SECRET }}
+          REFAZER: ${{ inputs.refazer && 'sim' || 'nao' }}
 
       - name: Guardar as artes tambem aqui (7 dias)
         if: always()
