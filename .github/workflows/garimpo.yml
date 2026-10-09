@@ -1,0 +1,25 @@
+name: Garimpo de produtos (so leitura)
+
+# Busca na API de afiliados da Shopee os termos de scripts/garimpo-termos.txt e devolve garimpo.json
+# como pacote baixavel. NAO grava nada no Supabase nem posta em canal nenhum.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  garimpar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/garimpo.mjs scripts/garimpo-termos.txt
+        env:
+          SHOPEE_APP_ID: ${{ secrets.SHOPEE_APP_ID }}
+          SHOPEE_APP_SECRET: ${{ secrets.SHOPEE_APP_SECRET }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: garimpo
+          path: garimpo.json
