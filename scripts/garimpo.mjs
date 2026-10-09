@@ -8,7 +8,7 @@ const termos = (await readFile(process.argv[2] || 'scripts/garimpo-termos.txt', 
 const CAMPOS = 'itemId shopId productName offerLink imageUrl priceMin priceDiscountRate sales ratingStar commissionRate shopName shopType';
 
 async function buscar(termo, sortType) {
-  const query = `{productOfferV2(keyword:"${termo.replace(/["\]/g, '')}",listType:0,sortType:${sortType},page:1,limit:30){nodes{${CAMPOS}}}}`;
+  const query = `{productOfferV2(keyword:"${termo.replace(/["\\]/g, '')}",listType:0,sortType:${sortType},page:1,limit:30){nodes{${CAMPOS}}}}`;
   const payload = JSON.stringify({ query });
   const ts = Math.floor(Date.now() / 1000);
   const sig = createHash('sha256').update(process.env.SHOPEE_APP_ID + ts + payload + process.env.SHOPEE_APP_SECRET).digest('hex');
