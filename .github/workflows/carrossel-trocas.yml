@@ -1,0 +1,49 @@
+name: Trocar produto do carrossel
+
+# O cockpit grava o pedido de troca (carrosseis.trocas); aqui, a cada 5 min, regera o carrossel com o produto novo.
+# Sem pedido, a rodada so faz uma consulta e termina (alguns segundos).
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: carrossel-trocas
+  cancel-in-progress: false
+
+jobs:
+  trocas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Tem troca pedida?
+        id: ver
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          n=$(curl -sf "${SUPABASE_URL%/}/rest/v1/carrosseis?select=id&trocas=not.is.null" \
+            -H "apikey: $SUPABASE_SERVICE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" | grep -o '"id"' | wc -l)
+          echo "Pedidos de troca: $n"
+          echo "n=$n" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        if: steps.ver.outputs.n != '0'
+
+      - uses: actions/setup-node@v4
+        if: steps.ver.outputs.n != '0'
+        with:
+          node-version: '20'
+
+      - name: Chromium (Playwright)
+        if: steps.ver.outputs.n != '0'
+        run: npm install --no-save --no-audit --no-fund playwright@1.48.2 && npx playwright install --with-deps chromium
+
+      - name: Regerar carrosseis
+        if: steps.ver.outputs.n != '0'
+        run: node video/carrossel.mjs trocas
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}

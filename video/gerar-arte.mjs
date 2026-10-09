@@ -28,6 +28,15 @@ export const TAMANHOS = {
 export const brl = (v) => Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
+/** Prova social da Shopee: "★ 4,8 · 9 mil vendidos". So mostra o que ajuda (nota boa, vendas de verdade). */
+export function provaSocial(oferta) {
+  const partes = [];
+  if (oferta.nota >= 4.5) partes.push(`<b>★</b> ${Number(oferta.nota).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`);
+  if (oferta.vendas >= 1000) partes.push(`${Math.floor(oferta.vendas / 1000)} mil+ vendidos`);
+  else if (oferta.vendas >= 100) partes.push(`${Math.floor(oferta.vendas / 100) * 100}+ vendidos`);
+  return partes.join(' · ');
+}
+
 async function chromium() {
   try {
     return (await import('playwright')).chromium;
@@ -47,6 +56,7 @@ export function html(oferta, t, fotoDataUrl, { cor: corFixa, numero } = {}) {
   const temDe = oferta.preco_de && oferta.preco_de > oferta.preco;
   const [reais, centavos] = brl(oferta.preco).split(',');
   const selo = Math.round(t.preco * 1.25);
+  const prova = provaSocial(oferta);
   return `<!doctype html><html><head><meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Poppins:wght@600;700;800&display=block" rel="stylesheet">
 <style>
@@ -64,7 +74,11 @@ export function html(oferta, t, fotoDataUrl, { cor: corFixa, numero } = {}) {
   h1{margin-top:${Math.round(t.pad * 0.3)}px;font-size:${t.nome}px;line-height:1.02;font-weight:800;color:${cor.escuro};
     display:-webkit-box;-webkit-line-clamp:${t.linhas};-webkit-box-orient:vertical;overflow:hidden;text-wrap:balance}
   .foto{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:${Math.round(t.pad * 0.5)}px ${t.pad}px}
-  .foto img{max-width:100%;max-height:100%;object-fit:contain;border-radius:24px}
+  .foto img{width:100%;height:100%;object-fit:contain;border-radius:24px}
+  .prova{position:absolute;left:50%;bottom:${Math.round(t.faixa * 0.12) + 10}px;transform:translateX(-50%);white-space:nowrap;background:#fff;color:${cor.escuro};
+    font-family:Poppins,sans-serif;font-size:${Math.round(t.marca * 1.25)}px;font-weight:700;padding:${Math.round(t.marca * 0.35)}px ${Math.round(t.marca * 0.9)}px;
+    border-radius:999px;box-shadow:0 0 0 3px ${cor.fundo},0 10px 24px -10px rgba(0,0,0,.35)}
+  .prova b{color:#F5A400}
   .selo{position:absolute;right:${Math.round(t.pad * 0.6)}px;top:${Math.round(t.pad * 0.2)}px;width:${selo}px;height:${selo}px;border-radius:50%;
     background:#FFD23F;color:${cor.escuro};display:flex;flex-direction:column;align-items:center;justify-content:center;transform:rotate(12deg);
     box-shadow:0 10px 0 rgba(0,0,0,.12)}
@@ -93,6 +107,7 @@ export function html(oferta, t, fotoDataUrl, { cor: corFixa, numero } = {}) {
     <div class="foto">
       <img src="${fotoDataUrl}">
       ${numero ? `<div class="numero">${numero}</div>` : ''}
+      ${prova ? `<div class="prova">${prova}</div>` : ''}
       ${oferta.desconto > 0 ? `<div class="selo"><b>-${Math.round(oferta.desconto)}%</b><span>OFF</span></div>` : ''}
     </div>
     <div class="faixa">

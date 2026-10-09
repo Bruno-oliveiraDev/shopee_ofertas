@@ -4,6 +4,7 @@
 // Sobe no Storage (bucket videos, pasta carrossel/) e grava na tabela carrosseis; o cockpit mostra pra baixar e postar.
 //
 // Uso: node video/carrossel.mjs [12h|20h]   (sem turno: decide pela hora de Brasilia)
+//      node video/carrossel.mjs trocas      (atende as trocas de produto pedidas no cockpit)
 // Variaveis: SUPABASE_URL, SUPABASE_SERVICE_KEY
 import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -15,6 +16,7 @@ const CHAVE = process.env.SUPABASE_SERVICE_KEY;
 const BUCKET = 'videos';
 const PRODUTOS = 3;
 const POR_CATEGORIA = 1; // 3 produtos de 3 categorias diferentes
+const CAMPOS = 'item_id,nome,preco,preco_de,desconto,vendas,nota,imagem,categoria';
 
 const TURNOS = {
   '12h': { cor: CORES.enxoval, ordem: (a, b) => a.preco - b.preco },
@@ -43,14 +45,13 @@ async function subir(nome, arquivo) {
 
 /** 3 produtos que foram pro grupo (o link esta la), sem repetir os carrosseis dos ultimos 7 dias. */
 async function escolher(turno) {
-  const campos = 'item_id,nome,preco,preco_de,desconto,vendas,nota,imagem,categoria';
   const usados = new Set(
     (await banco(`carrosseis?select=itens&criado_em=gte.${new Date(Date.now() - 7 * 86400e3).toISOString()}`)).flatMap((c) => c.itens || [])
   );
   // comeca pelos ultimos 2 dias e abre a janela se faltar produto
   for (const dias of [2, 4, 7, 14]) {
     const desde = new Date(Date.now() - dias * 86400e3).toISOString();
-    const enviadas = await banco(`ofertas?select=${campos}&status=eq.enviada&enviada_em=gte.${desde}&imagem=not.is.null&categoria=not.is.null&order=score.desc&limit=400`);
+    const enviadas = await banco(`ofertas?select=${CAMPOS}&status=eq.enviada&enviada_em=gte.${desde}&imagem=not.is.null&categoria=not.is.null&order=score.desc&limit=400`);
     const candidatas = enviadas.filter((o) => !usados.has(o.item_id) && o.preco > 0).sort(TURNOS[turno].ordem);
     const escolhidas = [];
     const porCategoria = {};
@@ -99,7 +100,8 @@ function capa(turno, ofertas, fotos, t, cor) {
     ? [`${ofertas.length} achadinhos pro bebê`, `até R$ ${teto}`, 'pra comprar hoje na Shopee']
     : ['os mais vendidos', 'pro bebê', `${ofertas.length} campeões de venda da Shopee`];
   // 3 cartoes cabem na largura: lado + 2 x 0,72 lado (com a rotacao)
-  const lado = Math.round((t.w - 2 * t.borda) * 0.35);
+  const lado = Math.round((t.w - 2 * t.borda) * 0.37);
+  const maiorDesconto = Math.max(...ofertas.map((o) => Math.round(o.desconto || 0)));
   return `${base(cor, t, `
   .topo{padding:${t.pad}px ${t.pad}px 0;text-align:center}
   .l1{margin-top:${Math.round(t.pad * 0.35)}px;font-size:${Math.round(t.nome * 0.95)}px;font-weight:800;color:${cor.escuro};line-height:1}
@@ -113,7 +115,15 @@ function capa(turno, ofertas, fotos, t, cor) {
     padding:4px 22px;font-size:${Math.round(t.nome * 0.62)}px;font-weight:800;box-shadow:0 6px 0 rgba(0,0,0,.12)}
   .item:nth-child(1){transform:translate(-122%,-44%) rotate(-8deg)}
   .item:nth-child(3){transform:translate(22%,-44%) rotate(8deg)}
-  .item:nth-child(2){transform:translate(-50%,-54%) scale(1.12);z-index:2}
+  .item:nth-child(2){transform:translate(-50%,-54%) scale(1.15);z-index:2}
+  /* etiqueta dos cartoes de lado vai pro lado de fora: o cartao do meio nao cobre mais o preco */
+  .item:nth-child(1) b{left:14px;transform:none}
+  .item:nth-child(3) b{left:auto;right:14px;transform:none}
+  .burst{position:absolute;z-index:3;right:${Math.round(t.pad * 0.5)}px;top:${Math.round(t.pad * 0.1)}px;width:${Math.round(t.preco * 1.25)}px;height:${Math.round(t.preco * 1.25)}px;
+    border-radius:50%;background:#FFD23F;color:${cor.escuro};display:flex;flex-direction:column;align-items:center;justify-content:center;transform:rotate(12deg);
+    box-shadow:0 10px 0 rgba(0,0,0,.12);line-height:.9}
+  .burst small{font-family:Poppins,sans-serif;font-size:${Math.round(t.preco * 0.17)}px;font-weight:800;letter-spacing:1px}
+  .burst b{font-size:${Math.round(t.preco * 0.42)}px;font-weight:800;letter-spacing:-1px}
 `)}
   <div class="tela">
     <div class="topo">
@@ -124,53 +134,115 @@ function capa(turno, ofertas, fotos, t, cor) {
     </div>
     <div class="leque">
       ${fotos.slice(0, 3).map((f, i) => `<div class="item"><img src="${f}"><b>R$ ${brl(ofertas[i].preco)}</b></div>`).join('')}
+      ${maiorDesconto >= 20 ? `<div class="burst"><small>ATÉ</small><b>-${maiorDesconto}%</b></div>` : ''}
     </div>
     <div class="faixa">${ONDA(cor)}arrasta pro lado ${SETA}</div>
   </div>
 </body></html>`;
 }
 
-function chamada(t, cor) {
+const ZAP = `<svg viewBox="0 0 24 24" fill="#fff"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.9 9.9 0 0 0 4.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm4.52 11.99c-.25-.12-1.47-.72-1.69-.81-.23-.08-.39-.12-.56.13-.17.24-.64.8-.78.97-.15.17-.29.19-.54.06-.25-.12-1.05-.39-1.99-1.23-.74-.66-1.23-1.47-1.38-1.72-.14-.25-.01-.38.11-.5.11-.11.25-.29.37-.43.13-.15.17-.25.25-.42.08-.17.04-.31-.02-.43-.06-.12-.56-1.34-.76-1.84-.2-.48-.41-.42-.56-.43h-.48c-.17 0-.43.06-.66.31-.22.25-.86.85-.86 2.07 0 1.22.89 2.4 1.01 2.56.12.17 1.75 2.67 4.23 3.74.59.26 1.05.41 1.41.52.59.19 1.13.16 1.56.1.48-.07 1.47-.6 1.67-1.18.21-.58.21-1.07.15-1.18-.06-.1-.23-.16-.48-.29Z"/></svg>`;
+
+/**
+ * Ultima imagem: vende o GRUPO, nao o link. Mostra o que a pessoa recebe (print do grupo com os achados do post),
+ * quanto recebe (achados por dia, numero real) e 1 acao so, no verde do WhatsApp (a unica coisa verde da tela).
+ */
+function chamada(t, cor, { ofertas = [], fotos = [], porDia = null } = {}) {
+  const s = (f) => Math.round(t.nome * f);
+  const hora = ['08:14', '10:02', '11:37'];
   return `${base(cor, t, `
-  .meio{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 ${t.pad}px;gap:${Math.round(t.pad * 0.45)}px}
-  .q{font-size:${Math.round(t.nome * 1.6)}px;font-weight:800;color:${cor.escuro};line-height:1}
-  .t{font-family:Poppins,sans-serif;font-size:${Math.round(t.nome * 0.62)}px;font-weight:600;color:${cor.escuro};opacity:.85;line-height:1.3;max-width:860px;text-wrap:balance}
-  .t b{color:${cor.forte};opacity:1}
-  .pilula{margin-top:${Math.round(t.pad * 0.3)}px;background:${cor.forte};color:#fff;border-radius:999px;padding:${Math.round(t.nome * 0.2)}px ${Math.round(t.nome * 0.8)}px;
-    font-size:${Math.round(t.nome * 1.3)}px;font-weight:800;box-shadow:0 10px 0 rgba(0,0,0,.12)}
-  .passos{display:flex;flex-direction:column;gap:14px;margin-top:${Math.round(t.pad * 0.3)}px;text-align:left}
-  .passos div{font-family:Poppins,sans-serif;font-size:${Math.round(t.nome * 0.6)}px;font-weight:700;color:${cor.escuro};display:flex;align-items:center;gap:20px}
-  .passos i{flex:none;width:${Math.round(t.nome * 0.95)}px;height:${Math.round(t.nome * 0.95)}px;border-radius:50%;background:${cor.fundo};color:${cor.escuro};
-    font-style:normal;display:flex;align-items:center;justify-content:center;font-family:'Baloo 2';font-weight:800}
+  .meio{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;text-align:center;padding:${t.pad}px ${t.pad}px 0;gap:${Math.round(t.pad * 0.3)}px}
+  .q{margin-top:${Math.round(t.pad * 0.1)}px;font-size:${t.linhas === 3 ? s(1.2) : s(1.4)}px;white-space:nowrap;font-weight:800;color:${cor.escuro};line-height:.95;letter-spacing:-1px}
+  .q b{color:${cor.forte}}
+  .t{font-family:Poppins,sans-serif;font-size:${s(0.56)}px;font-weight:600;color:${cor.escuro};line-height:1.3;max-width:900px;text-wrap:balance;opacity:.85}
+  .t b{color:${cor.forte};font-weight:800}
+  .zap{position:relative;width:100%;flex:1;min-height:0;border-radius:28px;overflow:hidden;background:#EFE7DE;display:flex;flex-direction:column;
+    box-shadow:0 0 0 4px ${cor.fundo},0 22px 40px -22px rgba(0,0,0,.45);text-align:left}
+  .zap header{flex:none;background:#008069;color:#fff;display:flex;align-items:center;gap:16px;padding:${s(0.22)}px ${s(0.35)}px}
+  .zap header i{flex:none;width:${s(0.9)}px;height:${s(0.9)}px;border-radius:50%;background:${cor.fundo};color:${cor.escuro};font-style:normal;
+    display:flex;align-items:center;justify-content:center;font-family:Poppins;font-size:${s(0.34)}px;font-weight:800}
+  .zap header b{display:block;font-family:Poppins;font-size:${s(0.42)}px;font-weight:700;line-height:1.1}
+  .zap header small{display:block;font-family:Poppins;font-size:${s(0.3)}px;font-weight:500;opacity:.85}
+  .conversa{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:flex-end;gap:${s(0.2)}px;padding:${s(0.25)}px ${s(0.3)}px;overflow:hidden}
+  .dia{align-self:center;background:#fff;color:#54656F;border-radius:10px;padding:4px 16px;font-family:Poppins;font-size:${s(0.28)}px;font-weight:600;
+    box-shadow:0 1px 1px rgba(0,0,0,.08)}
+  .msg{flex:none;align-self:flex-start;max-width:92%;background:#fff;border-radius:6px 22px 22px 22px;padding:${s(0.16)}px;display:flex;gap:${s(0.22)}px;align-items:center;
+    box-shadow:0 1px 1px rgba(0,0,0,.1);font-family:Poppins}
+  .msg img{flex:none;width:${s(1.6)}px;height:${s(1.6)}px;object-fit:contain;background:#fff;border-radius:14px;border:1px solid #eee}
+  .msg .n{font-size:${s(0.36)}px;font-weight:700;color:#111B21;line-height:1.15;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+  .msg .p{font-size:${s(0.36)}px;font-weight:600;color:#3B4A54;margin-top:2px}
+  .msg .p s{opacity:.7}
+  .msg .p b{color:#111B21;font-weight:800}
+  .msg .l{font-size:${s(0.3)}px;color:#027EB5;margin-top:2px}
+  .msg .h{font-size:${s(0.24)}px;color:#667781;text-align:right;margin-top:-4px}
+  .botao{flex:none;display:flex;align-items:center;justify-content:center;gap:${s(0.25)}px;width:100%;background:#1FA855;color:#fff;border-radius:999px;
+    padding:${s(0.28)}px ${s(0.4)}px;font-size:${s(0.8)}px;font-weight:800;line-height:1;box-shadow:0 10px 0 #12803F;margin-top:${Math.round(t.pad * 0.15)}px}
+  .botao svg{width:${s(0.85)}px;height:${s(0.85)}px;flex:none}
+  .bio{font-family:Poppins,sans-serif;font-size:${s(0.42)}px;font-weight:700;color:${cor.escuro};margin:${Math.round(t.pad * 0.2)}px 0 ${Math.round(t.faixa * 0.12 + t.pad * 0.3)}px}
+  .bio b{color:${cor.forte}}
+  .faixa{font-size:${s(0.62)}px}
 `)}
   <div class="tela">
     <div class="meio">
       <div class="marca"><i></i>ACHADINHOS KIDS<i></i></div>
-      <div class="q">Gostou de algum?</div>
-      <div class="t">O link de <b>todos</b> esses achados tá no nosso grupo de ofertas no WhatsApp</div>
-      <div class="pilula">link na bio</div>
-      <div class="passos">
-        <div><i>1</i>Toca no link da bio</div>
-        <div><i>2</i>Entra no grupo Achadinhos Kids</div>
-        <div><i>3</i>Pega o link e compra na Shopee</div>
+      <div class="q">Esses foram <b>só ${ofertas.length || 3}</b></div>
+      <div class="t">${porDia
+        ? `Todo dia saem <b>+${porDia} achadinhos</b> assim no nosso grupo do WhatsApp, com o link de cada um`
+        : 'Todo dia tem achadinho novo assim no nosso grupo do WhatsApp, com o link de cada um'}</div>
+      <div class="zap">
+        <header><i>AK</i><span><b>Achadinhos Kids</b><small>grupo de ofertas</small></span></header>
+        <div class="conversa">
+          <div class="dia">HOJE</div>
+          ${ofertas.slice(0, 3).map((o, i) => `<div class="msg"><img src="${fotos[i]}"><div>
+            <div class="n">${esc(nomeCurto(o.nome, 30))}</div>
+            <div class="p">${o.preco_de > o.preco ? `<s>R$ ${brl(o.preco_de)}</s> por ` : ''}<b>R$ ${brl(o.preco)}</b></div>
+            <div class="l">s.shopee.com.br/…</div>
+            <div class="h">${hora[i]}</div></div></div>`).join('')}
+        </div>
       </div>
+      <div class="botao">${ZAP}Quero entrar no grupo</div>
+      <div class="bio">o link tá na <b>bio</b> do perfil</div>
     </div>
-    <div class="faixa">${ONDA(cor)}ofertas novas todo dia</div>
+    <div class="faixa">${ONDA(cor)}grátis · sem spam · sai quando quiser</div>
   </div>
 </body></html>`;
 }
 
-const HASHTAGS = '#achadinhos #achadosshopee #shopee #bebe #maternidade #enxovaldebebe #maedeprimeiraviagem #promocao';
+/** Quantos achados o grupo recebe por dia (media dos 3 ultimos dias cheios, o canal que recebeu menos), arredondado pra baixo de 5 em 5. */
+async function achadosPorDia() {
+  try {
+    const diaBRT = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(d);
+    const hoje = new Date(`${diaBRT(new Date())}T00:00:00-03:00`);
+    const inicio = new Date(hoje.getTime() - 3 * 86400e3);
+    const linhas = await banco(`envios?select=enviado_em,canal_id&ok=is.true&enviado_em=gte.${inicio.toISOString()}&enviado_em=lt.${hoje.toISOString()}&limit=1000`);
+    const conta = {};
+    for (const l of linhas) {
+      const dia = diaBRT(new Date(l.enviado_em));
+      conta[dia] ??= {};
+      conta[dia][l.canal_id] = (conta[dia][l.canal_id] || 0) + 1;
+    }
+    const porDia = Object.values(conta).map((c) => Math.min(...Object.values(c))).filter((n) => n > 0);
+    if (!porDia.length) return null;
+    const media = Math.floor(porDia.reduce((a, b) => a + b, 0) / porDia.length / 5) * 5;
+    return media >= 10 ? media : null;
+  } catch (e) {
+    console.log(`Nao deu pra contar os achados por dia: ${e.message}`);
+    return null;
+  }
+}
 
-function legenda(turno, ofertas) {
+// o Instagram aceita no maximo 5 hashtags por post (desde dez/2025)
+const HASHTAGS = '#achadinhos #achadosshopee #enxovaldebebe #maternidade #bebe';
+
+function legenda(turno, ofertas, porDia = null) {
   const titulo = turno === '12h' ? `${ofertas.length} achadinhos pro bebê até R$ ${tetoDoPreco(ofertas)} 💸` : `Os ${ofertas.length} mais vendidos pro bebê na Shopee 🏆`;
   return [
     titulo,
     '',
     ...ofertas.map((o, i) => `${i + 1}. ${nomeCurto(o.nome, 40)}: a partir de R$ ${brl(o.preco)}`),
     '',
-    '👉 O link de todos tá no grupo Achadinhos Kids: entra pelo link da bio!',
-    'Salva esse post pra não perder e manda pra uma mãe que precisa ver 💕',
+    `👉 O link desses ${ofertas.length} tá no nosso grupo do WhatsApp${porDia ? `, junto com +${porDia} achadinhos novos por dia` : ''}. É grátis: link na bio!`,
+    'Conhece uma mãe montando o enxoval? Manda pra ela 💕',
     'Preço da Shopee muda rápido.',
     '',
     HASHTAGS,
@@ -179,19 +251,14 @@ function legenda(turno, ofertas) {
 
 // ---------------------------------------------------------------- execucao
 
-export { capa, chamada, legenda };
+export { capa, chamada, legenda, achadosPorDia };
 
-async function principal() {
-  if (!BASE || !CHAVE) throw new Error('Defina SUPABASE_URL e SUPABASE_SERVICE_KEY');
-  const agora = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' })
-    .formatToParts(new Date()).reduce((m, p) => ({ ...m, [p.type]: p.value }), {});
-  const dia = `${agora.year}-${agora.month}-${agora.day}`;
-  const turno = TURNOS[process.argv[2]] ? process.argv[2] : Number(agora.hour) < 16 ? '12h' : '20h';
+/** Gera as 5 imagens (feed + story), sobe no Storage e grava o carrossel do dia/turno. */
+async function montarEPublicar(dia, turno, ofertas) {
   const { cor } = TURNOS[turno];
-
-  const ofertas = await escolher(turno);
   console.log(`Carrossel ${turno} de ${dia}: ${ofertas.map((o) => o.item_id).join(', ')}`);
   const fotos = await Promise.all(ofertas.map((o) => fotoEmbutida(o.imagem)));
+  const porDia = await achadosPorDia();
 
   const pasta = path.resolve('saida-carrossel', `${dia}-${turno}`);
   await mkdir(pasta, { recursive: true });
@@ -202,7 +269,7 @@ async function principal() {
     const paginas = [
       (t) => capa(turno, ofertas, fotos, t, cor),
       ...ofertas.map((o, i) => (t) => html(o, t, fotos[i], { cor, numero: i + 1 })),
-      (t) => chamada(t, cor),
+      (t) => chamada(t, cor, { ofertas, fotos, porDia }),
     ];
     for (const [i, montar] of paginas.entries()) {
       const slide = {};
@@ -221,9 +288,46 @@ async function principal() {
   await banco('carrosseis?on_conflict=dia,turno', {
     method: 'POST',
     headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify({ dia, turno, titulo, legenda: legenda(turno, ofertas), slides, itens: ofertas.map((o) => o.item_id) }),
+    body: JSON.stringify({ dia, turno, titulo, legenda: legenda(turno, ofertas, porDia), slides, itens: ofertas.map((o) => o.item_id) }),
   });
   console.log(`Carrossel "${titulo}" pronto`);
+}
+
+/** Pedidos de troca feitos no cockpit: troca o produto da posicao e regera o carrossel inteiro (capa e chamada mostram os 3). */
+async function processarTrocas() {
+  const pedidos = await banco('carrosseis?select=id,dia,turno,itens,trocas,trocas_pedido_em&trocas=not.is.null&order=id');
+  if (!pedidos.length) return console.log('Nenhuma troca pedida');
+  for (const c of pedidos) {
+    // so limpa o pedido que foi atendido; se pediram outra troca no meio, ela fica pra proxima rodada
+    const limpar = (extra) =>
+      banco(`carrosseis?id=eq.${c.id}&trocas_pedido_em=eq.${encodeURIComponent(c.trocas_pedido_em)}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({ trocas: null, ...extra }),
+      });
+    try {
+      const itens = [...c.itens];
+      for (const [posicao, item] of Object.entries(c.trocas)) itens[Number(posicao) - 1] = String(item);
+      const lista = await banco(`ofertas?select=${CAMPOS}&item_id=in.(${itens.map((i) => `"${i}"`).join(',')})`);
+      const ofertas = itens.map((i) => lista.find((o) => o.item_id === i));
+      if (ofertas.some((o) => !o)) throw new Error('Um dos produtos escolhidos nao esta mais na base');
+      await montarEPublicar(c.dia, c.turno, ofertas);
+      await limpar({ troca_erro: null });
+    } catch (e) {
+      console.error(`Troca do carrossel ${c.id} falhou: ${e.message}`);
+      await limpar({ troca_erro: e.message.slice(0, 300) });
+    }
+  }
+}
+
+async function principal() {
+  if (!BASE || !CHAVE) throw new Error('Defina SUPABASE_URL e SUPABASE_SERVICE_KEY');
+  if (process.argv[2] === 'trocas') return processarTrocas();
+  const agora = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' })
+    .formatToParts(new Date()).reduce((m, p) => ({ ...m, [p.type]: p.value }), {});
+  const dia = `${agora.year}-${agora.month}-${agora.day}`;
+  const turno = TURNOS[process.argv[2]] ? process.argv[2] : Number(agora.hour) < 16 ? '12h' : '20h';
+  await montarEPublicar(dia, turno, await escolher(turno));
 }
 
 if (process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1]))) await principal();

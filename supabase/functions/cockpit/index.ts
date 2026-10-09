@@ -171,6 +171,35 @@ servirCockpit(
       return { ok: true }
     },
 
+    /** Produtos que podem entrar no lugar de outro: foram pro grupo nos ultimos 14 dias e nao estao no carrossel. */
+    async carrossel_candidatos({ id }: { id: number }) {
+      const [c] = await chamar(`carrosseis?id=eq.${enc(String(obrigatorio(id, 'id')))}&select=turno,itens`)
+      if (!c) throw new Error('Carrossel nao encontrado')
+      const desde = new Date(Date.now() - 14 * 86400e3).toISOString()
+      const ordem = c.turno === '12h' ? 'preco.asc' : 'vendas.desc.nullslast'
+      const lista = await chamar(
+        `ofertas?select=item_id,nome,preco,preco_de,desconto,vendas,nota,imagem,categoria&status=eq.enviada&enviada_em=gte.${enc(desde)}` +
+          `&imagem=not.is.null&categoria=not.is.null&preco=gt.0&order=${ordem}&limit=80`,
+      )
+      return lista.filter((o: { item_id: string }) => !c.itens.includes(o.item_id)).slice(0, 60)
+    },
+
+    /** Pede a troca do produto da posicao (1 a 3). O GitHub Actions regera as imagens em alguns minutos. */
+    async carrossel_trocar({ id, posicao, item_id }: { id: number; posicao: number; item_id: string }) {
+      const p = Number(posicao)
+      if (![1, 2, 3].includes(p)) throw new Error('Posicao invalida')
+      obrigatorio(item_id, 'item_id')
+      const [c] = await chamar(`carrosseis?id=eq.${enc(String(obrigatorio(id, 'id')))}&select=itens,trocas`)
+      if (!c) throw new Error('Carrossel nao encontrado')
+      if (c.itens.includes(String(item_id))) throw new Error('Esse produto ja esta no carrossel')
+      await chamar(`carrosseis?id=eq.${enc(String(id))}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({ trocas: { ...(c.trocas || {}), [p]: String(item_id) }, trocas_pedido_em: new Date().toISOString(), troca_erro: null }),
+      })
+      return { ok: true }
+    },
+
     // ---------------------------------------------------------------- videos (gerados todo dia no GitHub Actions)
     videos: () => chamar('videos?order=dia.desc,id.desc&limit=60'),
 
