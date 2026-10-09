@@ -25,8 +25,19 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-// Porta de entrada do cockpit. Por decisao do Bruno (07/10) fica SEM senha por enquanto:
-// quem tem o endereco usa. Para fechar de novo, conferir uma chave aqui antes de executar.
+// A LP e a /bio chamam estas sem senha (o endereco do cockpit aparece no codigo delas)
+const ACOES_PUBLICAS = new Set(['bio_clique', 'bio_achados']);
+
+/** Compara sem vazar pelo tempo de resposta quantos caracteres bateram. */
+function mesmaSenha(a, b) {
+  if (typeof a !== 'string' || a.length !== b.length) return false;
+  let diferenca = 0;
+  for (let i = 0; i < a.length; i++) diferenca |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diferenca === 0;
+}
+
+// Porta de entrada do cockpit. Com o secret COCKPIT_SENHA, toda acao (menos as publicas) pede a senha
+// no cabecalho x-cockpit-chave; sem o secret, fica aberto como era (decisao do Bruno, 07/10).
 // Corpo: { acao: 'nome', ...parametros }
 export function servirCockpit(acoes) {
   Deno.serve(async (req) => {
@@ -43,6 +54,11 @@ export function servirCockpit(acoes) {
 
     const acao = acoes[corpo.acao];
     if (!acao) return responder({ erro: `Acao desconhecida: ${corpo.acao}` }, 400);
+
+    const senha = Deno.env.get('COCKPIT_SENHA');
+    if (senha && !ACOES_PUBLICAS.has(corpo.acao) && !mesmaSenha(req.headers.get('x-cockpit-chave'), senha)) {
+      return responder({ erro: 'Senha do cockpit', senha: true }, 401);
+    }
 
     try {
       const resultado = await acao(corpo);

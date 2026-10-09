@@ -5,8 +5,7 @@ name: Gerar artes do dia
 # (O arquivo se chama videos.yml porque o 1o formato era video; trocado pela arte em 08/10.)
 
 on:
-  schedule:
-    - cron: '0 10 * * *'
+  # quem agenda e o pg_cron do Supabase (migrations/20261009150000_agendar_actions.sql): o schedule do GitHub parou em 06/10
   workflow_dispatch:
     inputs:
       quantidade:

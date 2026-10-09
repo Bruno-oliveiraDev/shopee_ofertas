@@ -5,9 +5,7 @@ name: Gerar carrossel
 #   19h de Brasilia -> carrossel das 20h ("Os mais vendidos pro bebe")
 
 on:
-  schedule:
-    - cron: '0 14 * * *'
-    - cron: '0 22 * * *'
+  # quem agenda e o pg_cron do Supabase (migrations/20261009150000_agendar_actions.sql): o schedule do GitHub parou em 06/10
   workflow_dispatch:
     inputs:
       turno:

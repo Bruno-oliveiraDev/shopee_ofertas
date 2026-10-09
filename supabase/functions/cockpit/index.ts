@@ -1,7 +1,8 @@
 // Tudo o que a tela do cockpit faz passa por aqui, com a service_role (as tabelas nao ficam abertas pro navegador).
-// Sem senha por enquanto (decisao do Bruno, 07/10).
+// Senha: secret COCKPIT_SENHA (ver servirCockpit). bio_clique e bio_achados ficam abertas pra LP.
 import { servirCockpit } from '../_shared/http.js';
 import { carregarConfig } from '../_shared/config.js';
+import { agoraBrasilia } from '../_shared/selecao.js';
 import { acaoNoBanco, canal, chamar, gravarSegredo, lerSegredos, ofertaPorId, pausas } from '../_shared/db.js';
 import { dispararNoCanal } from '../_shared/disparo.js';
 import { coletar } from '../_shared/coleta.js';
@@ -125,7 +126,8 @@ servirCockpit(
       }
       const [canais, investimentos] = await Promise.all([
         chamar('canais?select=id,nome,tipo,ativo&order=criado_em'),
-        chamar(`investimentos?dia=gte.${enc(desde.slice(0, 10))}`),
+        // so ate hoje: gasto lancado pro mes inteiro de uma vez nao conta antes de o dia chegar
+        chamar(`investimentos?dia=gte.${enc(desde.slice(0, 10))}&dia=lte.${agoraBrasilia().dia}`),
       ])
       // por grupo: ultima medicao antes do periodo (base) e todas as do periodo
       const membros = await Promise.all(
@@ -306,7 +308,11 @@ servirCockpit(
     },
 
     async evolution_salvar({ url, apikey }: { url: string; apikey?: string }) {
-      await gravarSegredo('evolution_url', String(obrigatorio(url, 'url')).trim().replace(/\/$/, ''))
+      const nova = String(obrigatorio(url, 'url')).trim().replace(/\/$/, '')
+      // trocar o endereco sem mandar a chave faria o robo mandar a chave guardada (global da agencia) pro endereco novo
+      const atual = (await lerSegredos(['evolution_url'])).evolution_url
+      if (nova !== atual && !apikey) throw new Error('Mudou o endereco da Evolution: informe a apikey junto')
+      await gravarSegredo('evolution_url', nova)
       if (apikey) await gravarSegredo('evolution_apikey', String(apikey).trim())
       const todas = await listarInstancias()
       return { ok: true, instancias: todas.filter((i: { nome: string }) => doAchadinhos(i.nome)) }

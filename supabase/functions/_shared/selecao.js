@@ -3,7 +3,6 @@
 
 const NOITE_A_PARTIR_DAS = 18;
 const CATEGORIAS_NOITE = ['roupa', 'fralda'];
-const CATEGORIAS_DIA = ['fralda', 'higiene', 'alimentacao', 'seguranca'];
 
 /** Todas as buscas, na ordem das categorias. */
 export const todasKeywords = (cfg) => Object.values(cfg.categorias).flat();
@@ -49,9 +48,24 @@ export function pontuar(oferta) {
   );
 }
 
+// quantos posts pra tras contam na hora de ver qual categoria esta "devendo"
+const JANELA_DA_PROPORCAO = 30;
+
+/** Peso da categoria agora: o do cockpit (pesoCategoria), com um empurrao pra roupa e fralda a noite. */
+function pesoAgora(cfg, categoria, noite) {
+  let peso = cfg.pesoCategoria?.[categoria] ?? 1;
+  if (noite && CATEGORIAS_NOITE.includes(categoria)) peso *= 1.5;
+  return peso;
+}
+
 /**
  * Ordena as candidatas para esta rodada.
  * recentes: categorias das ultimas ofertas enviadas, mais nova primeiro.
+ *
+ * 1o escolhe a CATEGORIA, depois a melhor oferta dentro dela. Antes era tudo numa nota so e o peso
+ * nao vencia a comissao: fralda (2-3% de comissao) saiu 1 vez em ~100 posts com peso 3.
+ * Agora cada categoria recebe a fatia do peso dela: com roupa 3, fralda 3, higiene 3, enxoval 2 e
+ * alimentacao 2, fralda fica com 3/13 dos posts. Vai a que mais esta "devendo" nos ultimos 30 posts.
  */
 export function escolher(cfg, candidatas, recentes, quantidade, agora = agoraBrasilia()) {
   const noite = agora.hora >= NOITE_A_PARTIR_DAS;
@@ -60,29 +74,30 @@ export function escolher(cfg, candidatas, recentes, quantidade, agora = agoraBra
   const restantes = [...candidatas];
 
   while (escolhidas.length < quantidade && restantes.length > 0) {
-    const bloqueadas = new Set(ultimas.slice(0, 2));
-
-    const comNota = restantes.map((oferta) => {
+    const porCategoria = new Map();
+    for (const oferta of restantes) {
       const categoria = categoriaDe(cfg, oferta.keyword);
-      let nota = pontuar(oferta);
+      if (!porCategoria.has(categoria)) porCategoria.set(categoria, []);
+      porCategoria.get(categoria).push(oferta);
+    }
 
-      if (noite && CATEGORIAS_NOITE.includes(categoria)) nota += 4;
-      if (!noite && CATEGORIAS_DIA.includes(categoria)) nota += 2;
-      // peso do assunto (config.pesoCategoria): o que o grupo quer ver mais vem mais vezes.
-      // Com o bloqueio das 2 ultimas, peso alto em roupa e fralda faz 2 de cada 3 posts serem delas.
-      nota += ((cfg.pesoCategoria?.[categoria] ?? 1) - 1) * 3;
-      // mesma categoria das 2 ultimas cai bastante, mas nao some se for o que sobrou
-      if (bloqueadas.has(categoria)) nota -= 100;
+    // mesma categoria das 2 ultimas fica de fora, a nao ser que seja o que sobrou
+    const bloqueadas = new Set(ultimas.slice(0, 2));
+    let disponiveis = [...porCategoria.keys()].filter((c) => !bloqueadas.has(c));
+    if (disponiveis.length === 0) disponiveis = [...porCategoria.keys()];
 
-      return { oferta, categoria, nota };
-    });
+    // so as categorias com oferta na fila dividem os posts
+    const pesos = new Map(disponiveis.map((c) => [c, pesoAgora(cfg, c, noite)]));
+    const total = [...pesos.values()].reduce((s, p) => s + p, 0);
+    const janela = ultimas.slice(0, JANELA_DA_PROPORCAO);
+    const deve = (c) => (pesos.get(c) / total) * (janela.length + 1) - janela.filter((x) => x === c).length;
 
-    comNota.sort((a, b) => b.nota - a.nota);
-    const melhor = comNota[0];
+    const categoria = disponiveis.sort((a, b) => deve(b) - deve(a) || pesos.get(b) - pesos.get(a))[0];
+    const melhor = porCategoria.get(categoria).sort((a, b) => pontuar(b) - pontuar(a))[0];
 
-    escolhidas.push(melhor.oferta);
-    ultimas.unshift(melhor.categoria);
-    restantes.splice(restantes.indexOf(melhor.oferta), 1);
+    escolhidas.push(melhor);
+    ultimas.unshift(categoria);
+    restantes.splice(restantes.indexOf(melhor), 1);
   }
 
   return escolhidas;

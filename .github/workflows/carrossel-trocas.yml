@@ -4,8 +4,7 @@ name: Trocar produto do carrossel
 # Sem pedido, a rodada so faz uma consulta e termina (alguns segundos).
 
 on:
-  schedule:
-    - cron: '*/5 * * * *'
+  # quem agenda e o pg_cron do Supabase (migrations/20261009150000_agendar_actions.sql): o schedule do GitHub parou em 06/10
   workflow_dispatch:
 
 concurrency:

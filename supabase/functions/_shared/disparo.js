@@ -115,7 +115,8 @@ export async function dispararNoCanal(cfg, canal, { teste = false, origem = 'age
     return { ...base, enviadas: 0, motivo: `Ja houve envio as ${ultimoEnvio.toISOString()}, pulando esta rodada.` };
   }
 
-  const categoriasRecentes = historico.slice(0, 15).map((e) => categoriaDe(cfg, e.keyword));
+  // 30 ultimos: a escolha olha a proporcao de cada categoria nessa janela (selecao.js)
+  const categoriasRecentes = historico.slice(0, 30).map((e) => categoriaDe(cfg, e.keyword));
 
   // anti-repeticao: tira da fila o que e parecido com algo que saiu no canal nos ultimos dias
   const limite = Date.now() - DIAS_SEM_REPETIR_PRODUTO * 86400000;

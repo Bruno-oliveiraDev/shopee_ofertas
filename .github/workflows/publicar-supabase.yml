@@ -31,8 +31,13 @@ jobs:
             TELEGRAM_CHAT_ID="$TELEGRAM_CHAT_ID" \
             SHOPEE_APP_ID="$SHOPEE_APP_ID" \
             SHOPEE_APP_SECRET="$SHOPEE_APP_SECRET"
+          # senha do cockpit (opcional): sem o secret COCKPIT_SENHA no GitHub, o cockpit segue aberto
+          if [ -n "$COCKPIT_SENHA" ]; then
+            supabase secrets set --project-ref "$PROJETO" COCKPIT_SENHA="$COCKPIT_SENHA"
+          fi
           supabase secrets list --project-ref "$PROJETO"
         env:
+          COCKPIT_SENHA: ${{ secrets.COCKPIT_SENHA }}
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
