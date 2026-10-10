@@ -94,6 +94,8 @@ export function historiaDoDia(dia, turno) {
 // cena certeira pelo NOME do produto (vale mais que a categoria: "kit talheres" e alimentacao mas nao e mamadeira)
 const PELO_NOME = [
   [/\bbody\b|bodies/i, 'o body que já não fecha mais'],
+  // short "tapa fralda" e roupa, nao fralda; e vem antes de pijama (nome de short as vezes cita pijama)
+  [/\bshorts?\b|tapa.?fralda|\bcal[cç]a\b|mij[aã]o|conjunto|vestido|camiseta|jardineira/i, 'a roupinha que dura um mês'],
   [/pijama|macac[aã]o/i, 'o pijama que ficou pequeno do nada'],
   [/toalha/i, 'a toalha de capuz que todo mundo esquece'],
   [/manta|cueiro/i, 'a manta que vai pra todo lado'],
