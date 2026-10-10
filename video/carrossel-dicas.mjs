@@ -12,7 +12,7 @@ import { TAMANHOS, chromium, esc, renderizar } from './gerar-arte.mjs';
 import { TEMAS, legendaDicas, temaDoDia } from './dicas.mjs';
 
 const PASTA_FUNDOS = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fundos');
-const PERFIL = '@achadinhos_kids2';
+const PERFIL = '@achadinhos_kids';
 
 /** 6 fotos do dia, sem repetir entre si; a sequencia anda a cada dia pra nao repetir o post de ontem. */
 async function fundosDoDia(dia, quantos) {
