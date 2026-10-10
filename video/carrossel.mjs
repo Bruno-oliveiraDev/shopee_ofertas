@@ -1,7 +1,7 @@
-// Carrossel de 5 imagens pro Instagram (1080x1350) e TikTok (1080x1920), 2 por dia:
-//   12h "Achadinhos ate R$ X" (os mais baratos) e 20h "Os mais vendidos pro bebe".
-// Conta uma HISTORINHA (video/historia.mjs): 1 = capa com o gancho, 2 a 4 = cada produto como uma cena da rotina,
-// 5 = fecho da historia + convite pro grupo. Tambem gera o story animado (video/story-animado.mjs) quando tem FFmpeg.
+// Carrossel de achados pro Instagram (1080x1350) e TikTok (1080x1920), 2 por dia (12h os mais baratos, 20h os mais vendidos).
+// Desde 10/10/2026 no modelo "a lista que cabe num post-it" (video/achados-postit.mjs): capa + 1 slide por produto + fecho.
+// Produto que reprova no QA do template (foto pequena, nome que nao cabe) sai e o job escolhe outro.
+// Os templates antigos (historinha: capa/cena/chamada) ficam exportados so como referencia.
 // Sobe no Storage (bucket videos, pasta carrossel/) e grava na tabela carrosseis; o cockpit mostra pra baixar e postar.
 //
 // Uso: node video/carrossel.mjs [12h|20h]   (sem turno: decide pela hora de Brasilia)
@@ -13,7 +13,7 @@ import { CORES, TAMANHOS, brl, chromium, esc, fotoEmbutida, renderizar } from '.
 import { nomeCurto } from './roteiro.mjs';
 import { NBCAL, simplificar } from '../supabase/functions/_shared/shopee.js';
 import { historiaDoDia, passos } from './historia.mjs';
-import { storyAnimado } from './story-animado.mjs';
+import { ProdutoRuim, gerarAchados } from './achados-postit.mjs';
 
 const BASE = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const CHAVE = process.env.SUPABASE_SERVICE_KEY;
@@ -48,7 +48,7 @@ async function subir(nome, arquivo, tipo = 'image/jpeg') {
 }
 
 /** 3 produtos que foram pro grupo (o link esta la), sem repetir os carrosseis dos ultimos 7 dias. */
-async function escolher(turno) {
+async function escolher(turno, fora = new Set()) {
   const usados = new Set(
     (await banco(`carrosseis?select=itens&criado_em=gte.${new Date(Date.now() - 7 * 86400e3).toISOString()}`)).flatMap((c) => c.itens || [])
   );
@@ -56,7 +56,7 @@ async function escolher(turno) {
   for (const dias of [2, 4, 7, 14]) {
     const desde = new Date(Date.now() - dias * 86400e3).toISOString();
     const enviadas = await banco(`ofertas?select=${CAMPOS}&status=eq.enviada&enviada_em=gte.${desde}&imagem=not.is.null&categoria=not.is.null&order=score.desc&limit=400`);
-    const candidatas = enviadas.filter((o) => !usados.has(o.item_id) && o.preco > 0 && !NBCAL.test(simplificar(o.nome))).sort(TURNOS[turno].ordem);
+    const candidatas = enviadas.filter((o) => !usados.has(o.item_id) && !fora.has(o.item_id) && o.preco > 0 && !NBCAL.test(simplificar(o.nome))).sort(TURNOS[turno].ordem);
     const escolhidas = [];
     const porCategoria = {};
     for (const o of candidatas) {
@@ -280,56 +280,22 @@ function legenda(historia, ofertas, porDia = null) {
 
 export { capa, cena, chamada, legenda, achadosPorDia, banco, subir };
 
-/** Gera as 5 imagens (feed + story), sobe no Storage e grava o carrossel do dia/turno. */
+/** Gera as imagens (feed + story) no modelo post-it (achados-postit.mjs), sobe no Storage e grava o carrossel do dia/turno. */
 async function montarEPublicar(dia, turno, ofertas) {
-  const { cor } = TURNOS[turno];
-  const historia = historiaDoDia(dia, turno);
-  const frases = passos(historia, ofertas);
   console.log(`Carrossel ${turno} de ${dia}: ${ofertas.map((o) => o.item_id).join(', ')}`);
-  const fotos = await Promise.all(ofertas.map((o) => fotoEmbutida(o.imagem)));
-  const porDia = await achadosPorDia();
-
   const pasta = path.resolve('saida-carrossel', `${dia}-${turno}`);
-  await mkdir(pasta, { recursive: true });
-  const nav = await (await chromium()).launch();
+  const { slides: locais, titulo, legenda: texto } = await gerarAchados(ofertas, { dia, turno, pasta });
   const slides = [];
-  try {
-    // 5 imagens, cada uma em 2 tamanhos: feed (Instagram) e story (TikTok)
-    const paginas = [
-      (t) => capa(historia, ofertas, fotos, t, cor),
-      ...ofertas.map((o, i) => (t) => cena(o, frases[i], fotos[i], t, cor, i + 2, ofertas.length + 2)),
-      (t) => chamada(t, cor, { ofertas, fotos, porDia, fecho: historia.fecho }),
-    ];
-    for (const [i, montar] of paginas.entries()) {
-      const slide = {};
-      for (const formato of ['feed', 'story']) {
-        const arquivo = await renderizar(nav, montar(TAMANHOS[formato]), TAMANHOS[formato], path.join(pasta, `${String(i + 1).padStart(2, '0')}-${formato}.jpg`));
-        slide[formato] = await subir(`carrossel/${dia}-${turno}/${path.basename(arquivo)}`, arquivo);
-      }
-      slides.push(slide);
-      console.log(`imagem ${i + 1}/${paginas.length} ok`);
-    }
-  } finally {
-    await nav.close();
+  for (const [i, l] of locais.entries()) {
+    const slide = {};
+    for (const formato of ['feed', 'story']) slide[formato] = await subir(`carrossel/${dia}-${turno}/${path.basename(l[formato])}`, l[formato]);
+    slides.push(slide);
+    console.log(`imagem ${i + 1}/${locais.length} ok`);
   }
-
-  // story animado (video): so roda onde tem FFmpeg; se falhar, o carrossel sai igual
-  if (process.env.STORY_ANIMADO !== '0') {
-    try {
-      const quadros = slides.map((_, i) => path.join(pasta, `${String(i + 1).padStart(2, '0')}-story.jpg`));
-      const mp4 = await storyAnimado({ historia, frases, quadros, pasta });
-      slides[0].video = await subir(`carrossel/${dia}-${turno}/story-animado.mp4`, mp4, 'video/mp4');
-      console.log('story animado ok');
-    } catch (e) {
-      console.log(`Story animado nao saiu: ${e.message}`);
-    }
-  }
-
-  const titulo = historia.gancho;
   await banco('carrosseis?on_conflict=dia,turno', {
     method: 'POST',
     headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify({ dia, turno, titulo, legenda: legenda(historia, ofertas, porDia), slides, itens: ofertas.map((o) => o.item_id) }),
+    body: JSON.stringify({ dia, turno, titulo, legenda: texto, slides, itens: ofertas.map((o) => o.item_id) }),
   });
   console.log(`Carrossel "${titulo}" pronto`);
 }
@@ -368,7 +334,16 @@ async function principal() {
     .formatToParts(new Date()).reduce((m, p) => ({ ...m, [p.type]: p.value }), {});
   const dia = `${agora.year}-${agora.month}-${agora.day}`;
   const turno = TURNOS[process.argv[2]] ? process.argv[2] : Number(agora.hour) < 16 ? '12h' : '20h';
-  await montarEPublicar(dia, turno, await escolher(turno));
+  const fora = new Set();
+  for (let tentativa = 1; ; tentativa++) {
+    try {
+      return await montarEPublicar(dia, turno, await escolher(turno, fora));
+    } catch (e) {
+      if (!(e instanceof ProdutoRuim) || tentativa >= 4) throw e;
+      console.log(`Produto ${e.itemId} saiu (${e.message}); escolhendo de novo`);
+      fora.add(e.itemId);
+    }
+  }
 }
 
 if (process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1]))) await principal();

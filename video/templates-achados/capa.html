@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<!-- ACHADOS · CAPA. Marcadores {{...}} são trocados pelo job (texto já escapado em HTML; *marca* vira marca-texto).
+     {{FORMATO}} feed|story · {{SEMENTE}} id do post (traços sorteados mas estáveis) · {{FOTO_CAPA}} foto CC0 neutra (gente/luz natural)
+     {{FOTO_FOCO}} object-position · {{KICKER}} até 24 · {{GANCHO}} até 56 · {{SUB}} até 48 · {{POSTIT_1..3}} até 12 cada (vazio = some) -->
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Mynerve&family=Delicious+Handrawn&family=Atkinson+Hyperlegible+Next:wght@400;600;700;800&display=block" rel="stylesheet">
+<link rel="stylesheet" href="{{BASE}}achados.css">
+</head>
+<body data-tipo="capa" data-formato="{{FORMATO}}" data-semente="{{SEMENTE}}">
+<div id="papel"></div><div id="vinheta"></div>
+<div class="area" style="justify-content:space-between">
+  <div id="quadro" style="position:relative;align-self:flex-start;margin-left:-14px;margin-bottom:130px" data-gira="-2.6,-1.2">
+    <div class="polar" data-k="foto" style="padding:16px 16px 64px">
+      <img id="fcapa" src="{{FOTO_CAPA}}" style="width:800px;height:600px;object-position:{{FOTO_FOCO}}" data-encolhe="600,430">
+    </div>
+    <div class="fita" style="width:190px;top:-24px;left:60px" data-gira="-10,-4"></div>
+    <div id="pcapa" class="postit" data-k="postit" data-gira="5,8" style="position:absolute;right:-70px;bottom:-110px;width:400px;font-size:68px">
+      <div class="it"><i class="cx"></i><span class="tx postit-letra">{{POSTIT_1}}</span></div>
+      <div class="it"><i class="cx"></i><span class="tx postit-letra">{{POSTIT_2}}</span></div>
+      <div class="it"><i class="cx"></i><span class="tx postit-letra">{{POSTIT_3}}</span></div>
+      <div class="selo">{{PERFIL}}</div>
+    </div>
+  </div>
+  <div data-k="titulo" id="titulo">
+    <div class="caneta" data-fit="66,50" style="font-size:66px;margin-bottom:8px;max-width:620px">{{KICKER}}</div>
+    <div class="mao" data-fit="104,72" style="font-size:104px">{{GANCHO}}</div>
+    <div class="corpo" data-fit="44,42" style="font-size:44px;margin-top:18px;color:#5B524A">{{SUB}}</div>
+  </div>
+</div>
+<script src="{{BASE}}achados.js"></script>
+</body></html>

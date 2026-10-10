@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<!-- ACHADOS · FECHO. Um pedido só por vez: primeiro ENVIO (destinatária concreta), depois o grupo pela bio.
+     {{FOTO_FECHO}} CC0 de gente (nunca a mesma da capa) · {{FOTO_FOCO}} · {{ENVIO}} até 52 · {{PORQUE}} até 60
+     {{GRUPO}} até 80 com *marca* · {{RODAPE}} fixo "grátis · sem spam · #publi" · {{PAGINA}} -->
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Mynerve&family=Delicious+Handrawn&family=Atkinson+Hyperlegible+Next:wght@400;600;700;800&display=block" rel="stylesheet">
+<link rel="stylesheet" href="{{BASE}}achados.css">
+</head>
+<body data-tipo="fecho" data-formato="{{FORMATO}}" data-semente="{{SEMENTE}}">
+<div id="papel"></div><div id="vinheta"></div>
+<div class="pg">{{PAGINA}}</div>
+<div class="area" style="justify-content:space-between;gap:24px">
+  <div style="position:relative;align-self:flex-end;margin-right:6px" data-gira="1.5,3">
+    <div class="polar" data-k="foto"><img id="ffecho" src="{{FOTO_FECHO}}" style="width:540px;height:405px;object-position:{{FOTO_FOCO}}" data-encolhe="405,300"></div>
+    <div class="fita" style="width:160px;top:-22px;left:40px" data-gira="-12,-4"></div>
+  </div>
+  <div data-k="envio">
+    <div class="mao" data-fit="88,62" style="font-size:88px;color:var(--tinta)">{{ENVIO}}</div>
+    <div class="corpo" data-fit="46,42" style="margin-top:14px">{{PORQUE}}</div>
+  </div>
+  <div data-k="grupo" id="grupo" style="border-top:2px dashed rgba(42,37,34,.25);padding-top:24px;display:flex;gap:26px;align-items:center">
+    <div style="flex:1;min-width:0">
+      <div class="corpo" data-fit="44,42" style="font-size:44px">{{GRUPO}}</div>
+      <div class="miudo" style="margin-top:12px">{{RODAPE}}</div>
+    </div>
+    <div class="postit" data-gira="3,6" style="padding:22px 26px 16px;width:300px">
+      <div class="postit-letra" style="font-size:50px;line-height:1">link do grupo na bio</div>
+      <div class="selo" style="margin-top:10px">{{PERFIL}}</div>
+    </div>
+  </div>
+</div>
+<script src="{{BASE}}achados.js"></script>
+</body></html>
