@@ -1,6 +1,7 @@
 // Carrossel de 5 imagens pro Instagram (1080x1350) e TikTok (1080x1920), 2 por dia:
 //   12h "Achadinhos ate R$ X" (os mais baratos) e 20h "Os mais vendidos pro bebe".
-// Imagem 1 = capa (colagem dos 3 produtos), 2 a 4 = os 3 produtos numerados, 5 = chamada pro grupo.
+// Conta uma HISTORINHA (video/historia.mjs): 1 = capa com o gancho, 2 a 4 = cada produto como uma cena da rotina,
+// 5 = fecho da historia + convite pro grupo. Tambem gera o story animado (video/story-animado.mjs) quando tem FFmpeg.
 // Sobe no Storage (bucket videos, pasta carrossel/) e grava na tabela carrosseis; o cockpit mostra pra baixar e postar.
 //
 // Uso: node video/carrossel.mjs [12h|20h]   (sem turno: decide pela hora de Brasilia)
@@ -8,8 +9,10 @@
 // Variaveis: SUPABASE_URL, SUPABASE_SERVICE_KEY
 import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { CORES, TAMANHOS, brl, chromium, esc, fotoEmbutida, html, renderizar } from './gerar-arte.mjs';
+import { CORES, TAMANHOS, brl, chromium, esc, fotoEmbutida, renderizar } from './gerar-arte.mjs';
 import { nomeCurto } from './roteiro.mjs';
+import { historiaDoDia, passos } from './historia.mjs';
+import { storyAnimado } from './story-animado.mjs';
 
 const BASE = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const CHAVE = process.env.SUPABASE_SERVICE_KEY;
@@ -33,10 +36,10 @@ async function banco(caminho, opcoes = {}) {
   return texto ? JSON.parse(texto) : null;
 }
 
-async function subir(nome, arquivo) {
+async function subir(nome, arquivo, tipo = 'image/jpeg') {
   const r = await fetch(`${BASE}/storage/v1/object/${BUCKET}/${nome}`, {
     method: 'POST',
-    headers: { apikey: CHAVE, Authorization: `Bearer ${CHAVE}`, 'Content-Type': 'image/jpeg', 'x-upsert': 'true' },
+    headers: { apikey: CHAVE, Authorization: `Bearer ${CHAVE}`, 'Content-Type': tipo, 'x-upsert': 'true' },
     body: await readFile(arquivo),
   });
   if (!r.ok) throw new Error(`Storage respondeu ${r.status}: ${(await r.text()).slice(0, 300)}`);
@@ -66,10 +69,6 @@ async function escolher(turno) {
   throw new Error(`Menos de ${PRODUTOS} produtos novos enviados nos ultimos 14 dias`);
 }
 
-const tetoDoPreco = (ofertas) => {
-  const maior = Math.max(...ofertas.map((o) => o.preco));
-  return maior <= 20 ? 20 : maior <= 30 ? 30 : maior <= 50 ? 50 : Math.ceil(maior / 10) * 10;
-};
 
 /** Estilo comum da capa e da chamada final: a mesma moldura das artes. */
 function base(cor, t, extra) {
@@ -94,49 +93,74 @@ const ONDA = (cor) =>
   `<svg class="onda" viewBox="0 0 1000 100" preserveAspectRatio="none"><path d="M0,60 C160,0 340,0 500,50 C660,100 840,100 1000,40 L1000,100 L0,100 Z" fill="${cor.forte}"/></svg>`;
 const SETA = `<svg width="1.1em" height="1.1em" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>`;
 
-function capa(turno, ofertas, fotos, t, cor) {
-  const teto = tetoDoPreco(ofertas);
-  const [linha1, destaque, linha2] = turno === '12h'
-    ? [`${ofertas.length} achadinhos pro bebê`, `até R$ ${teto}`, 'pra comprar hoje na Shopee']
-    : ['os mais vendidos', 'pro bebê', `${ofertas.length} campeões de venda da Shopee`];
-  // 3 cartoes cabem na largura: lado + 2 x 0,72 lado (com a rotacao)
-  const lado = Math.round((t.w - 2 * t.borda) * 0.37);
-  const maiorDesconto = Math.max(...ofertas.map((o) => Math.round(o.desconto || 0)));
+/**
+ * Capa = o gancho da historia, grande, e os 3 produtos so espiando embaixo (cortados): da vontade de arrastar pra ver.
+ */
+function capa(historia, ofertas, fotos, t, cor) {
+  const s = (f) => Math.round(t.nome * f);
+  const lado = Math.round((t.w - 2 * t.borda) * (t.linhas === 3 ? 0.36 : 0.3));
   return `${base(cor, t, `
-  .topo{padding:${t.pad}px ${t.pad}px 0;text-align:center}
-  .l1{margin-top:${Math.round(t.pad * 0.35)}px;font-size:${Math.round(t.nome * 0.95)}px;font-weight:800;color:${cor.escuro};line-height:1}
-  .dest{font-size:${Math.round(t.nome * 2.1)}px;font-weight:800;color:${cor.forte};line-height:.95;letter-spacing:-2px}
-  .l2{font-family:Poppins,sans-serif;font-size:${Math.round(t.nome * 0.42)}px;font-weight:700;color:${cor.escuro};opacity:.7;margin-top:6px}
-  .leque{position:relative;flex:1;min-height:0;margin:${Math.round(t.pad * 0.4)}px 0 ${Math.round(t.pad * 0.8)}px}
-  .item{position:absolute;top:50%;left:50%;width:${lado}px;height:${lado}px;border-radius:32px;background:#fff;padding:18px;
-    box-shadow:0 0 0 6px ${cor.fundo},0 24px 40px -18px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center}
-  .item img{max-width:100%;max-height:100%;object-fit:contain;border-radius:18px}
-  .item b{position:absolute;bottom:-22px;left:50%;transform:translateX(-50%);white-space:nowrap;background:${cor.forte};color:#fff;border-radius:999px;
-    padding:4px 22px;font-size:${Math.round(t.nome * 0.62)}px;font-weight:800;box-shadow:0 6px 0 rgba(0,0,0,.12)}
-  .item:nth-child(1){transform:translate(-122%,-44%) rotate(-8deg)}
-  .item:nth-child(3){transform:translate(22%,-44%) rotate(8deg)}
-  .item:nth-child(2){transform:translate(-50%,-54%) scale(1.15);z-index:2}
-  /* etiqueta dos cartoes de lado vai pro lado de fora: o cartao do meio nao cobre mais o preco */
-  .item:nth-child(1) b{left:14px;transform:none}
-  .item:nth-child(3) b{left:auto;right:14px;transform:none}
-  .burst{position:absolute;z-index:3;right:${Math.round(t.pad * 0.5)}px;top:${Math.round(t.pad * 0.1)}px;width:${Math.round(t.preco * 1.25)}px;height:${Math.round(t.preco * 1.25)}px;
-    border-radius:50%;background:#FFD23F;color:${cor.escuro};display:flex;flex-direction:column;align-items:center;justify-content:center;transform:rotate(12deg);
-    box-shadow:0 10px 0 rgba(0,0,0,.12);line-height:.9}
-  .burst small{font-family:Poppins,sans-serif;font-size:${Math.round(t.preco * 0.17)}px;font-weight:800;letter-spacing:1px}
-  .burst b{font-size:${Math.round(t.preco * 0.42)}px;font-weight:800;letter-spacing:-1px}
+  .topo{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;padding:${t.pad}px ${Math.round(t.pad * 1.1)}px 0;text-align:center;gap:${Math.round(t.pad * 0.35)}px}
+  .gancho{font-size:${t.linhas === 3 ? s(1.55) : s(1.45)}px;font-weight:800;color:${cor.escuro};line-height:1;letter-spacing:-1.5px;text-wrap:balance}
+  .sub{display:inline-flex;align-self:center;align-items:center;gap:14px;font-family:Poppins,sans-serif;font-size:${s(0.55)}px;font-weight:800;color:${cor.forte}}
+  .sub svg{width:1em;height:1em}
+  .espia{position:relative;flex:none;height:${Math.round(lado * 0.78)}px;margin-bottom:${Math.round(t.faixa * 0.12)}px}
+  .item{position:absolute;bottom:-${Math.round(lado * 0.3)}px;left:50%;width:${lado}px;height:${lado}px;border-radius:28px;background:#fff;padding:14px;
+    box-shadow:0 0 0 6px ${cor.fundo},0 18px 34px -16px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center}
+  .item img{max-width:100%;max-height:100%;object-fit:contain;border-radius:16px}
+  .item:nth-child(1){transform:translateX(-140%) rotate(-10deg)}
+  .item:nth-child(2){transform:translateX(-50%) rotate(2deg);z-index:2;bottom:-${Math.round(lado * 0.18)}px}
+  .item:nth-child(3){transform:translateX(40%) rotate(9deg)}
 `)}
   <div class="tela">
     <div class="topo">
       <div class="marca"><i></i>ACHADINHOS KIDS<i></i></div>
-      <div class="l1">${esc(linha1)}</div>
-      <div class="dest">${esc(destaque)}</div>
-      <div class="l2">${esc(linha2)}</div>
+      <div class="gancho">${esc(historia.gancho)}</div>
+      <div class="sub">${esc(historia.sub)} <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
     </div>
-    <div class="leque">
-      ${fotos.slice(0, 3).map((f, i) => `<div class="item"><img src="${f}"><b>R$ ${brl(ofertas[i].preco)}</b></div>`).join('')}
-      ${maiorDesconto >= 20 ? `<div class="burst"><small>ATÉ</small><b>-${maiorDesconto}%</b></div>` : ''}
-    </div>
+    <div class="espia">${fotos.slice(0, 3).map((f) => `<div class="item"><img src="${f}"></div>`).join('')}</div>
     <div class="faixa">${ONDA(cor)}arrasta pro lado ${SETA}</div>
+  </div>
+</body></html>`;
+}
+
+/**
+ * Imagem de cada produto como CENA da historia: a frase da rotina em cima (grande), o produto no meio
+ * e o nome + preco embaixo, menores. Quem le primeiro se identifica, depois ve o achado.
+ */
+function cena(oferta, frase, foto, t, cor, numero, total) {
+  const s = (f) => Math.round(t.nome * f);
+  const temDe = oferta.preco_de && oferta.preco_de > oferta.preco;
+  return `${base(cor, t, `
+  .topo{padding:${t.pad}px ${t.pad}px 0;text-align:center}
+  .frase{margin-top:${Math.round(t.pad * 0.3)}px;font-size:${t.linhas === 3 ? s(1.08) : s(0.98)}px;font-weight:800;color:${cor.escuro};line-height:1.02;letter-spacing:-.5px;text-wrap:balance}
+  .foto{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:${Math.round(t.pad * 0.4)}px ${t.pad}px}
+  .foto img{width:100%;height:100%;object-fit:contain;border-radius:24px}
+  .pag{position:absolute;left:${Math.round(t.pad * 0.6)}px;top:${Math.round(t.pad * 0.1)}px;font-family:Poppins,sans-serif;font-size:${s(0.36)}px;font-weight:800;
+    color:${cor.forte};background:#fff;border:3px solid ${cor.fundo};border-radius:999px;padding:4px 16px}
+  .selo{position:absolute;right:${Math.round(t.pad * 0.5)}px;top:${Math.round(t.pad * 0.05)}px;width:${s(1.9)}px;height:${s(1.9)}px;border-radius:50%;background:#FFD23F;
+    color:${cor.escuro};display:flex;align-items:center;justify-content:center;transform:rotate(12deg);font-size:${s(0.62)}px;font-weight:800;box-shadow:0 8px 0 rgba(0,0,0,.12)}
+  .faixa{height:auto;flex-direction:column;gap:4px;padding:${Math.round(t.pad * 0.45)}px ${t.pad}px ${Math.round(t.pad * 0.4)}px}
+  .nome{font-family:Poppins,sans-serif;font-size:${s(0.42)}px;font-weight:700;opacity:.95;text-align:center;line-height:1.2;
+    display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+  .preco{display:flex;align-items:baseline;gap:16px;line-height:1}
+  .preco s{font-family:Poppins,sans-serif;font-size:${s(0.42)}px;font-weight:600;opacity:.8;text-decoration-thickness:3px}
+  .preco b{font-size:${s(1.25)}px;font-weight:800;letter-spacing:-1px}
+`)}
+  <div class="tela">
+    <div class="topo">
+      <div class="marca"><i></i>ACHADINHOS KIDS<i></i></div>
+      <div class="frase">${esc(frase)}</div>
+    </div>
+    <div class="foto">
+      <img src="${foto}">
+      <div class="pag">${numero}/${total}</div>
+      ${oferta.desconto >= 15 ? `<div class="selo">-${Math.round(oferta.desconto)}%</div>` : ''}
+    </div>
+    <div class="faixa">${ONDA(cor)}
+      <div class="nome">${esc(nomeCurto(oferta.nome, 40))}</div>
+      <div class="preco">${temDe ? `<s>R$ ${brl(oferta.preco_de)}</s>` : ''}<b>R$ ${brl(oferta.preco)}</b></div>
+    </div>
   </div>
 </body></html>`;
 }
@@ -147,12 +171,12 @@ const ZAP = `<svg viewBox="0 0 24 24" fill="#fff"><path d="M12.04 2C6.58 2 2.13 
  * Ultima imagem: vende o GRUPO, nao o link. Mostra o que a pessoa recebe (print do grupo com os achados do post),
  * quanto recebe (achados por dia, numero real) e 1 acao so, no verde do WhatsApp (a unica coisa verde da tela).
  */
-function chamada(t, cor, { ofertas = [], fotos = [], porDia = null } = {}) {
+function chamada(t, cor, { ofertas = [], fotos = [], porDia = null, fecho = null } = {}) {
   const s = (f) => Math.round(t.nome * f);
   const hora = ['08:14', '10:02', '11:37'];
   return `${base(cor, t, `
   .meio{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;text-align:center;padding:${t.pad}px ${t.pad}px 0;gap:${Math.round(t.pad * 0.3)}px}
-  .q{margin-top:${Math.round(t.pad * 0.1)}px;font-size:${t.linhas === 3 ? s(1.2) : s(1.4)}px;white-space:nowrap;font-weight:800;color:${cor.escuro};line-height:.95;letter-spacing:-1px}
+  .q{margin-top:${Math.round(t.pad * 0.1)}px;font-size:${fecho ? s(0.95) : t.linhas === 3 ? s(1.2) : s(1.4)}px;${fecho ? 'text-wrap:balance' : 'white-space:nowrap'};font-weight:800;color:${cor.escuro};line-height:.98;letter-spacing:-1px}
   .q b{color:${cor.forte}}
   .t{font-family:Poppins,sans-serif;font-size:${s(0.56)}px;font-weight:600;color:${cor.escuro};line-height:1.3;max-width:900px;text-wrap:balance;opacity:.85}
   .t b{color:${cor.forte};font-weight:800}
@@ -185,7 +209,7 @@ function chamada(t, cor, { ofertas = [], fotos = [], porDia = null } = {}) {
   <div class="tela">
     <div class="meio">
       <div class="marca"><i></i>ACHADINHOS KIDS<i></i></div>
-      <div class="q">Esses foram <b>só ${ofertas.length || 3}</b></div>
+      <div class="q">${fecho ? `${esc(fecho[0])}<br><b>${esc(fecho[1])}</b>` : `Esses foram <b>só ${ofertas.length || 3}</b>`}</div>
       <div class="t">${porDia
         ? `Todo dia saem <b>+${porDia} achadinhos</b> assim no nosso grupo do WhatsApp, com o link de cada um`
         : 'Todo dia tem achadinho novo assim no nosso grupo do WhatsApp, com o link de cada um'}</div>
@@ -234,15 +258,17 @@ async function achadosPorDia() {
 // o Instagram aceita no maximo 5 hashtags por post (desde dez/2025)
 const HASHTAGS = '#achadinhos #achadosshopee #enxovaldebebe #maternidade #bebe';
 
-function legenda(turno, ofertas, porDia = null) {
-  const titulo = turno === '12h' ? `${ofertas.length} achadinhos pro bebê até R$ ${tetoDoPreco(ofertas)} 💸` : `Os ${ofertas.length} mais vendidos pro bebê na Shopee 🏆`;
+/** Legenda conta a mesma historia do carrossel: gancho, as 3 cenas com o produto, fecho e convite. */
+function legenda(historia, ofertas, porDia = null) {
+  const linhas = passos(historia, ofertas).map((l) => l.replace(/^\d+\.\s*/, '').replace(/^…|…$/g, ''));
   return [
-    titulo,
+    `${historia.gancho} ${historia.sub} 👇`,
     '',
-    ...ofertas.map((o, i) => `${i + 1}. ${nomeCurto(o.nome, 40)}: a partir de R$ ${brl(o.preco)}`),
+    ...ofertas.map((o, i) => `${i + 1}. ${linhas[i]}: ${nomeCurto(o.nome, 40)}, R$ ${brl(o.preco)}`),
     '',
-    `👉 O link desses ${ofertas.length} tá no nosso grupo do WhatsApp${porDia ? `, junto com +${porDia} achadinhos novos por dia` : ''}. É grátis: link na bio!`,
-    'Conhece uma mãe montando o enxoval? Manda pra ela 💕',
+    `${historia.fecho.join(' ')} 💛`,
+    `👉 O link desses ${ofertas.length} tá no nosso grupo grátis do WhatsApp${porDia ? `, junto com +${porDia} achadinhos novos por dia` : ''}. Link na bio!`,
+    'Conhece uma mãe que ia se identificar? Manda pra ela 💕',
     'Preço da Shopee muda rápido.',
     '',
     HASHTAGS,
@@ -251,11 +277,13 @@ function legenda(turno, ofertas, porDia = null) {
 
 // ---------------------------------------------------------------- execucao
 
-export { capa, chamada, legenda, achadosPorDia };
+export { capa, cena, chamada, legenda, achadosPorDia };
 
 /** Gera as 5 imagens (feed + story), sobe no Storage e grava o carrossel do dia/turno. */
 async function montarEPublicar(dia, turno, ofertas) {
   const { cor } = TURNOS[turno];
+  const historia = historiaDoDia(dia, turno);
+  const frases = passos(historia, ofertas);
   console.log(`Carrossel ${turno} de ${dia}: ${ofertas.map((o) => o.item_id).join(', ')}`);
   const fotos = await Promise.all(ofertas.map((o) => fotoEmbutida(o.imagem)));
   const porDia = await achadosPorDia();
@@ -267,9 +295,9 @@ async function montarEPublicar(dia, turno, ofertas) {
   try {
     // 5 imagens, cada uma em 2 tamanhos: feed (Instagram) e story (TikTok)
     const paginas = [
-      (t) => capa(turno, ofertas, fotos, t, cor),
-      ...ofertas.map((o, i) => (t) => html(o, t, fotos[i], { cor, numero: i + 1 })),
-      (t) => chamada(t, cor, { ofertas, fotos, porDia }),
+      (t) => capa(historia, ofertas, fotos, t, cor),
+      ...ofertas.map((o, i) => (t) => cena(o, frases[i], fotos[i], t, cor, i + 2, ofertas.length + 2)),
+      (t) => chamada(t, cor, { ofertas, fotos, porDia, fecho: historia.fecho }),
     ];
     for (const [i, montar] of paginas.entries()) {
       const slide = {};
@@ -284,11 +312,23 @@ async function montarEPublicar(dia, turno, ofertas) {
     await nav.close();
   }
 
-  const titulo = turno === '12h' ? `Achadinhos até R$ ${tetoDoPreco(ofertas)}` : 'Os mais vendidos pro bebê';
+  // story animado (video): so roda onde tem FFmpeg; se falhar, o carrossel sai igual
+  if (process.env.STORY_ANIMADO !== '0') {
+    try {
+      const quadros = slides.map((_, i) => path.join(pasta, `${String(i + 1).padStart(2, '0')}-story.jpg`));
+      const mp4 = await storyAnimado({ historia, frases, quadros, pasta });
+      slides[0].video = await subir(`carrossel/${dia}-${turno}/story-animado.mp4`, mp4, 'video/mp4');
+      console.log('story animado ok');
+    } catch (e) {
+      console.log(`Story animado nao saiu: ${e.message}`);
+    }
+  }
+
+  const titulo = historia.gancho;
   await banco('carrosseis?on_conflict=dia,turno', {
     method: 'POST',
     headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify({ dia, turno, titulo, legenda: legenda(turno, ofertas, porDia), slides, itens: ofertas.map((o) => o.item_id) }),
+    body: JSON.stringify({ dia, turno, titulo, legenda: legenda(historia, ofertas, porDia), slides, itens: ofertas.map((o) => o.item_id) }),
   });
   console.log(`Carrossel "${titulo}" pronto`);
 }
