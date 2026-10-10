@@ -111,7 +111,8 @@ servirCockpit(
 
     /** Os 3 produtos do carrossel mais recente, pra pagina /bio mostrar "achados de hoje". */
     async bio_achados() {
-      const [ultimo] = await chamar('carrosseis?select=dia,turno,slides&order=dia.desc,turno.desc&limit=1')
+      // so os de achados (12h/20h): o de dicas nao tem produto
+      const [ultimo] = await chamar('carrosseis?select=dia,turno,slides&turno=in.(12h,20h)&order=dia.desc,turno.desc&limit=1')
       return { achados: (ultimo?.slides || []).slice(1, -1).map((s: { feed: string }) => s.feed) }
     },
 
@@ -161,7 +162,7 @@ servirCockpit(
       return { dias: Number(dias), resumo }
     },
 
-    // ---------------------------------------------------------------- carrosseis (12h e 20h, gerados no GitHub Actions)
+    // ---------------------------------------------------------------- carrosseis (12h e 20h com achados, dicas sem venda; gerados no GitHub Actions)
     carrosseis: () => chamar('carrosseis?order=dia.desc,turno.desc&limit=20'),
 
     async carrossel_postado({ id, postado = true }: { id: number; postado?: boolean }) {
@@ -191,8 +192,9 @@ servirCockpit(
       const p = Number(posicao)
       if (![1, 2, 3].includes(p)) throw new Error('Posicao invalida')
       obrigatorio(item_id, 'item_id')
-      const [c] = await chamar(`carrosseis?id=eq.${enc(String(obrigatorio(id, 'id')))}&select=itens,trocas`)
+      const [c] = await chamar(`carrosseis?id=eq.${enc(String(obrigatorio(id, 'id')))}&select=itens,trocas,turno`)
       if (!c) throw new Error('Carrossel nao encontrado')
+      if (c.turno === 'dicas') throw new Error('Carrossel de dicas nao tem produto pra trocar')
       if (c.itens.includes(String(item_id))) throw new Error('Esse produto ja esta no carrossel')
       await chamar(`carrosseis?id=eq.${enc(String(id))}`, {
         method: 'PATCH',

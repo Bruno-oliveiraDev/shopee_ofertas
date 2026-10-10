@@ -277,7 +277,7 @@ function legenda(historia, ofertas, porDia = null) {
 
 // ---------------------------------------------------------------- execucao
 
-export { capa, cena, chamada, legenda, achadosPorDia };
+export { capa, cena, chamada, legenda, achadosPorDia, banco, subir };
 
 /** Gera as 5 imagens (feed + story), sobe no Storage e grava o carrossel do dia/turno. */
 async function montarEPublicar(dia, turno, ofertas) {

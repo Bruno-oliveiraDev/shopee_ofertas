@@ -1,18 +1,19 @@
 name: Gerar carrossel
 
-# 2 carrosseis por dia (5 imagens cada), prontos 1 hora antes de postar:
-#   11h de Brasilia -> carrossel das 12h ("Achadinhos ate R$ X")
-#   19h de Brasilia -> carrossel das 20h ("Os mais vendidos pro bebe")
+# 3 carrosseis por dia, prontos 1 hora antes de postar:
+#   11h de Brasilia -> 12h, historinha com 3 achados ("12h")
+#   15h de Brasilia -> 16h, DICAS de mae pra mae, zero venda ("dicas", video/carrossel-dicas.mjs)
+#   19h de Brasilia -> 20h, historinha com 3 achados ("20h")
 
 on:
-  # quem agenda e o pg_cron do Supabase (migrations/20261009150000_agendar_actions.sql): o schedule do GitHub parou em 06/10
+  # quem agenda e o pg_cron do Supabase (migrations/20261009150000_agendar_actions.sql e 20261010150000_carrossel_dicas.sql)
   workflow_dispatch:
     inputs:
       turno:
         description: 'Turno (vazio = pela hora)'
         required: false
         type: choice
-        options: ['', '12h', '20h']
+        options: ['', '12h', '20h', 'dicas']
 
 concurrency:
   group: carrossel
@@ -33,23 +34,15 @@ jobs:
       - name: Chromium (Playwright)
         run: npm install --no-save --no-audit --no-fund playwright@1.48.2 && npx playwright install --with-deps chromium
 
-      # story animado (video narrado da historinha): FFmpeg + voz Piper pt_BR. Se falhar, o carrossel sai igual, sem video.
-      - name: FFmpeg e voz (Piper)
-        continue-on-error: true
-        run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
-          mkdir -p "$HOME/piper" && cd "$HOME/piper"
-          curl -sSL https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz | tar xz
-          curl -sSLO https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/pt/pt_BR/faber/medium/pt_BR-faber-medium.onnx
-          curl -sSLO https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/pt/pt_BR/faber/medium/pt_BR-faber-medium.onnx.json
-          echo "PIPER_BIN=$HOME/piper/piper/piper" >> "$GITHUB_ENV"
-          echo "PIPER_VOICE=$HOME/piper/pt_BR-faber-medium.onnx" >> "$GITHUB_ENV"
-
       - name: Gerar e publicar
-        run: node video/carrossel.mjs "${{ inputs.turno }}"
+        run: |
+          if [ "${{ inputs.turno }}" = "dicas" ]; then node video/carrossel-dicas.mjs
+          else node video/carrossel.mjs "${{ inputs.turno }}"; fi
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          # story animado desligado (10/10: ficou com cara de IA). O codigo fica em video/story-animado.mjs.
+          STORY_ANIMADO: '0'
 
       - name: Guardar tambem aqui (7 dias)
         if: always()
