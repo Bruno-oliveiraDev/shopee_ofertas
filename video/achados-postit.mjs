@@ -87,7 +87,8 @@ const ENVIOS = [
 /** Fotos CC0 de gente (capa e fecho), diferentes entre si e das do carrossel de dicas do mesmo dia. */
 async function fotosDeGente(dia, turno) {
   const { fotos } = JSON.parse(await readFile(path.join(PASTA_FUNDOS, 'tags.json'), 'utf8'));
-  const boas = fotos.filter((f) => f.sonoSeguro !== false && !f.evitar && f.luz !== 'noite');
+  // bebê dormindo fica fora (mesmo seguro, deita de lado em tapete parece contrariar a SBP na miniatura)
+  const boas = fotos.filter((f) => f.sonoSeguro !== false && !f.evitar && f.luz !== 'noite' && !(f.assunto || []).some((a) => ['sono', 'berco', 'madrugada', 'descanso'].includes(a)));
   const k = doAno(dia) * 3 + (turno === '20h' ? 2 : 1);
   const capa = boas[k % boas.length];
   const fecho = boas.filter((f) => f !== capa)[(k + 7) % (boas.length - 1)];
