@@ -1,155 +1,168 @@
-// Carrossel de DICAS (zero venda), 1 por dia: 6 imagens sobre foto neutra (CC0, pasta video/fundos).
-//   1 = capa com o gancho, 2 a 5 = as 4 dicas, 6 = fecho (salva, manda pra uma amiga, segue o perfil).
-// Sem produto, preco ou link: o perfil e quem leva pro grupo. Grava em carrosseis com turno 'dicas'.
+// Carrossel de DICAS (zero venda), 1 por dia, no modelo "Revista de mãe" (vencedor do loop de 10/10/2026):
+//   capa (foto real em cima, papel rasgado e gancho) -> 4 dicas (foto, papel, foto, caneta) -> cola pra printar -> fecho (manda pra uma amiga).
+// Os templates ficam em video/templates-dicas (CSS, auto-ajuste do texto e QA dentro de cada HTML: window.__pronto devolve os erros).
+// Dica com foto que não coube vira dica de papel (plano B). Qualquer outro erro de QA derruba o post antes de gravar.
+// Fotos: video/fundos + tags.json (capa, foco, assunto; nunca sonoSeguro:false nem evitar:true). Grava em carrosseis com turno 'dicas'.
 //
 // Uso: node video/carrossel-dicas.mjs [AAAA-MM-DD]   (sem data: hoje em Brasilia)
-//      node video/carrossel-dicas.mjs previa pasta [tema]   (so gera as imagens locais, sem banco)
+//      node video/carrossel-dicas.mjs previa pasta [tema] [AAAA-MM-DD]   (so gera as imagens locais, sem banco)
 // Variaveis: SUPABASE_URL, SUPABASE_SERVICE_KEY
-import { mkdir, readFile, readdir } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TAMANHOS, chromium, esc, renderizar } from './gerar-arte.mjs';
-import { TEMAS, legendaDicas, temaDoDia } from './dicas.mjs';
+import { TAMANHOS, chromium } from './gerar-arte.mjs';
+import { ATIVOS, TEMAS, legendaDicas, temaDoDia } from './dicas.mjs';
+import { GANCHOS } from './ganchos.mjs';
 
-const PASTA_FUNDOS = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fundos');
+const AQUI = path.dirname(fileURLToPath(import.meta.url));
+const PASTA_FUNDOS = path.join(AQUI, 'fundos');
+const PASTA_TEMPLATES = path.join(AQUI, 'templates-dicas');
 const PERFIL = '@achadinhos_kids';
 
-/** 6 fotos do dia, sem repetir entre si; a sequencia anda a cada dia pra nao repetir o post de ontem. */
-async function fundosDoDia(dia, quantos) {
-  const arquivos = (await readdir(PASTA_FUNDOS)).filter((f) => /\.jpe?g$/i.test(f)).sort();
-  if (!arquivos.length) return Array(quantos).fill(null);
+const esc = (t) => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+// palavra de 1-2 letras gruda na seguinte (sem "É" ou "a" sozinho no fim da linha)
+const cola = (t) => String(t ?? '').replace(/(^|\s)(\S{1,2}) (?=\S)/g, '$1$2 ');
+const aspas = (t) => String(t ?? '').replace(/"([^"]*)"/g, '“$1”');
+const fmt = (t) => esc(cola(aspas(t))).replace(/\*(.+?)\*/g, '<span class="mk">$1</span>');
+const itens = (lista) => lista.map((it) => `<div class="item" data-txt><span class="caixa"></span><span class="it" data-papel="item" data-piso="40">${esc(it)}</span></div>`).join('');
+const preencher = (tpl, v) => tpl.replace(/\{\{([A-Z_]+)\}\}/g, (_, k) => v[k] ?? '');
+const doAno = (dia) => {
   const d = new Date(`${dia}T12:00:00Z`);
-  const doAno = Math.floor((d - new Date(Date.UTC(d.getUTCFullYear(), 0, 1))) / 86400e3);
-  const escolhidos = Array.from({ length: quantos }, (_, i) => arquivos[(doAno * quantos + i) % arquivos.length]);
-  return Promise.all(escolhidos.map(async (f) => `data:image/jpeg;base64,${(await readFile(path.join(PASTA_FUNDOS, f))).toString('base64')}`));
+  return Math.floor((d - new Date(Date.UTC(d.getUTCFullYear(), 0, 1))) / 86400e3);
+};
+
+// o Chromium do GitHub nao tem fonte de emoji: emoji so na legenda
+const semEmoji = (t) => t.replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '').replace(/\s+/g, ' ').trim();
+
+/** Marca-texto amarelo no fim do gancho: o trecho depois de ":" (se curto) ou as 3 últimas palavras. */
+function marcar(gancho) {
+  if (gancho.includes('*')) return gancho;
+  const i = gancho.lastIndexOf(':');
+  if (i > 0 && gancho.length - i < 42) return `${gancho.slice(0, i + 1)} *${gancho.slice(i + 1).trim()}*`;
+  const p = gancho.split(' ');
+  return p.length > 4 ? `${p.slice(0, -3).join(' ')} *${p.slice(-3).join(' ')}*` : gancho;
 }
 
-/** Moldura comum: foto em tela cheia + veu pra leitura. Story deixa 250 px livres em cima e 340 embaixo. */
-function base(t, fundo, extra) {
-  const story = t.h > 1500;
-  const s = (f) => Math.round(t.w * f);
-  return `<!doctype html><html><head><meta charset="utf-8">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@500;600;700&display=block" rel="stylesheet">
-<style>
-  *{margin:0;box-sizing:border-box}
-  body{width:${t.w}px;height:${t.h}px;overflow:hidden;font-family:Inter,sans-serif;color:#FFF8EE;position:relative;
-    background:${fundo ? `#3B3530 url(${fundo}) center/cover` : 'linear-gradient(160deg,#C9B8A6,#8C7B6B)'}}
-  .veu{position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,20,16,.35) 0%,rgba(25,20,16,.05) 35%,rgba(25,20,16,.15) 55%,rgba(25,20,16,.72) 100%)}
-  .area{position:absolute;left:${s(0.075)}px;right:${s(0.075)}px;top:${story ? 270 : s(0.07)}px;bottom:${story ? 360 : s(0.07)}px;display:flex;flex-direction:column}
-  .topo{display:flex;justify-content:space-between;align-items:center;font-size:${s(0.024)}px;font-weight:600;letter-spacing:2px;text-transform:uppercase;opacity:.92}
-  .pontos{display:flex;gap:10px}
-  .pontos i{width:${s(0.011)}px;height:${s(0.011)}px;border-radius:50%;background:rgba(255,248,238,.45)}
-  .pontos i.on{background:#FFF8EE}
-  .serif{font-family:Fraunces,serif}
-  ${extra}
-</style></head><body><div class="veu"></div>`;
+/** Fecho com destinatária certa (o envio é o que o Instagram mais premia). */
+const FECHO = {
+  'sono-seguro': 'Manda pra quem *vai montar o berço.*',
+  visitas: 'Manda pro *grupo da família.*',
+  parceiro: 'Manda pro *pai do bebê.*',
+  'mala-maternidade': 'Manda pra amiga que *está esperando bebê.*',
+  'enxoval-esperto': 'Manda pra amiga que *está montando o enxoval.*',
+  'primeiro-mes': 'Manda pra amiga que *acabou de ganhar bebê.*',
+  'carga-mental': 'Manda pra quem *divide a casa com você.*',
+};
+
+/** Gancho do dia: a cada volta completa dos temas usa o próximo dos 5 ganchos testáveis. */
+function ganchoDoDia(tema, dia) {
+  // o fecho ja pede o envio: gancho que comeca com Manda/Salva fica de fora da capa
+  const opcoes = [tema.gancho, ...(GANCHOS[tema.id] || [])].filter((g, i, a) => a.indexOf(g) === i && g.length <= 70 && !/^(manda|salva)/i.test(g));
+  if (!opcoes.length) return tema.gancho;
+  return opcoes[Math.floor(doAno(dia) / ATIVOS.length) % opcoes.length];
 }
 
-const pontos = (n, total) => `<div class="pontos">${Array.from({ length: total }, (_, i) => `<i class="${i === n ? 'on' : ''}"></i>`).join('')}</div>`;
-
-function capa(tema, t, fundo, total) {
-  const s = (f) => Math.round(t.w * f);
-  return `${base(t, fundo, `
-  .gancho{margin-top:auto;font-size:${s(0.092)}px;font-weight:700;line-height:1.02;letter-spacing:-1px;text-wrap:balance;text-shadow:0 2px 24px rgba(0,0,0,.35)}
-  .rodape{margin-top:${s(0.04)}px;display:flex;align-items:center;gap:14px;font-size:${s(0.03)}px;font-weight:600}
-  .rodape span{display:inline-block;padding:10px 22px;border:2px solid rgba(255,248,238,.8);border-radius:999px}
-`)}
-  <div class="area">
-    <div class="topo"><span>dica de mãe pra mãe</span>${pontos(0, total)}</div>
-    <div class="gancho serif">${esc(tema.gancho)}</div>
-    <div class="rodape"><span>arrasta pro lado →</span></div>
-  </div>
-</body></html>`;
+/** Fotos do dia (capa, 2 dicas, fecho), sem repetir no post; a sequência anda a cada dia. */
+async function fotosDoDia(dia) {
+  const { fotos } = JSON.parse(await readFile(path.join(PASTA_FUNDOS, 'tags.json'), 'utf8'));
+  const boas = fotos.filter((f) => f.sonoSeguro !== false && !f.evitar);
+  const n = doAno(dia);
+  const roda = (lista, k) => lista[(n * 2 + k) % lista.length];
+  const capa = roda(boas.filter((f) => f.capa), 0);
+  const fecho = roda(boas.filter((f) => f !== capa && (f.assunto || []).some((a) => ['maos', 'pes', 'colo'].includes(a))), 0);
+  const resto = boas.filter((f) => f !== capa && f !== fecho && !f.capa);
+  const dicas = [roda(resto, 0), roda(resto, 1)];
+  if (dicas[0] === dicas[1]) dicas[1] = roda(resto, 2);
+  const embutir = async (f) => ({ url: `data:image/jpeg;base64,${(await readFile(path.join(PASTA_FUNDOS, f.arquivo))).toString('base64')}`, foco: f.foco || '50% 40%' });
+  return { capa: await embutir(capa), fecho: await embutir(fecho), dicas: await Promise.all(dicas.map(embutir)) };
 }
 
-function dica(d, i, t, fundo, total) {
-  const s = (f) => Math.round(t.w * f);
-  return `${base(t, fundo, `
-  .cartao{margin-top:auto;background:rgba(255,250,243,.93);color:#3A302A;border-radius:${s(0.035)}px;padding:${s(0.06)}px ${s(0.06)}px ${s(0.065)}px;
-    box-shadow:0 20px 50px -20px rgba(0,0,0,.5)}
-  .num{font-size:${s(0.075)}px;font-weight:700;color:#B88A6A;line-height:1}
-  .t{margin-top:${s(0.02)}px;font-size:${s(0.062)}px;font-weight:700;line-height:1.08;letter-spacing:-.5px;text-wrap:balance}
-  .x{margin-top:${s(0.025)}px;font-size:${s(0.036)}px;font-weight:500;line-height:1.42;color:#5A4D44;text-wrap:pretty}
-`)}
-  <div class="area">
-    <div class="topo"><span>${PERFIL}</span>${pontos(i + 1, total)}</div>
-    <div class="cartao">
-      <div class="num serif">${String(i + 1).padStart(2, '0')}</div>
-      <div class="t serif">${esc(d.t)}</div>
-      <div class="x">${esc(d.x)}</div>
-    </div>
-  </div>
-</body></html>`;
+/** Os slides do post a partir do tema (formato de dicas.mjs: gancho, 4 dicas {t, x}). */
+function montarSlides(tema, gancho, fotos) {
+  const tons = ['foto', 'papel', 'foto', 'caneta'];
+  let f = 0;
+  return [
+    { tipo: 'capa', foto: fotos.capa, kicker: doAno(tema._dia) % 2 ? 'pra salvar' : 'de mãe pra mãe', titulo: marcar(semEmoji(gancho)), sub: `${tema.dicas.length} dicas, arrasta pro lado` },
+    ...tema.dicas.map((d, i) => ({ tipo: 'dica', n: i + 1, tom: tons[i % tons.length], foto: tons[i % tons.length] === 'foto' ? fotos.dicas[f++ % 2] : null, titulo: d.t, texto: d.x })),
+    { tipo: 'cola', kicker: 'pra printar', nota: 'cola na geladeira', titulo: 'Resumo pra não esquecer', itens: tema.dicas.map((d) => d.t) },
+    { tipo: 'fecho', foto: fotos.fecho, titulo: FECHO[tema.id] || 'Manda pra uma amiga que *é mãe também.*', sub: 'Ela vai lembrar de você.', depois: 'Salva pra reler. Grupo de achados: link na bio.' },
+  ];
 }
 
-function fecho(t, fundo, total) {
-  const s = (f) => Math.round(t.w * f);
-  return `${base(t, fundo, `
-  .meio{margin:auto 0;text-align:center;display:flex;flex-direction:column;align-items:center;gap:${s(0.035)}px}
-  .a{font-size:${s(0.085)}px;font-weight:700;line-height:1.05;text-shadow:0 2px 24px rgba(0,0,0,.35)}
-  .b{font-size:${s(0.04)}px;font-weight:600;line-height:1.4;max-width:${s(0.75)}px;text-wrap:balance}
-  .perfil{margin-top:${s(0.02)}px;padding:${s(0.022)}px ${s(0.05)}px;border-radius:999px;background:rgba(255,250,243,.93);color:#3A302A;font-size:${s(0.038)}px;font-weight:700}
-`)}
-  <div class="area">
-    <div class="topo"><span>dica de mãe pra mãe</span>${pontos(total - 1, total)}</div>
-    <div class="meio">
-      <div class="a serif">Salva pra lembrar 💛</div>
-      <div class="b">e manda pra uma mãe que precisa ver isso hoje</div>
-      <div class="perfil">mais dicas assim no ${PERFIL}</div>
-    </div>
-  </div>
-</body></html>`;
+function variaveis(s, k, total, semente, formato, comFoto) {
+  return {
+    FORMATO: formato, SEMENTE: `${semente}:${k}`, PERFIL: esc(PERFIL), PAG: `${k + 1}/${total}`,
+    TOM: s.tom === 'caneta' ? 'caneta' : '', DESTAQUE: s.destaque ? 'destaque' : '',
+    ...(comFoto && s.foto ? { FOTO_URL: s.foto.url, FOTO_FOCO: s.foto.foco } : {}),
+    KICKER: esc(s.kicker), TITULO: fmt(s.titulo), SUB: fmt(s.sub), TEXTO: fmt(s.texto), N: esc(s.n),
+    NOTA: s.nota ? esc((s.tipo === 'cola' ? '' : '↳ ') + s.nota) : '', ITENS: s.itens ? itens(s.itens) : '', DEPOIS: esc(s.depois),
+  };
 }
 
-/** Gera as 6 imagens (feed + story) do tema numa pasta. Devolve [{feed, story}] com os caminhos locais. */
+/** Gera as imagens (feed + story) do tema numa pasta. Devolve { slides: [{feed, story}], gancho }. */
 export async function gerarDicas(tema, dia, pasta) {
   await mkdir(pasta, { recursive: true });
-  const total = tema.dicas.length + 2;
-  const fundos = await fundosDoDia(dia, total);
-  const paginas = [
-    (t) => capa(tema, t, fundos[0], total),
-    ...tema.dicas.map((d, i) => (t) => dica(d, i, t, fundos[i + 1], total)),
-    (t) => fecho(t, fundos[total - 1], total),
-  ];
+  const gancho = ganchoDoDia(tema, dia);
+  const slides = montarSlides({ ...tema, _dia: dia }, gancho, await fotosDoDia(dia));
+  const templates = {};
+  for (const nome of ['capa', 'dica-foto', 'dica-papel', 'cola', 'fecho']) templates[nome] = await readFile(path.join(PASTA_TEMPLATES, `${nome}.html`), 'utf8');
+
   const nav = await (await chromium()).launch();
-  const slides = [];
+  const pagina = await nav.newPage({ deviceScaleFactor: 1 });
+  const saida = [];
   try {
-    for (const [i, montar] of paginas.entries()) {
+    for (const [k, s] of slides.entries()) {
       const slide = {};
       for (const formato of ['feed', 'story']) {
-        slide[formato] = await renderizar(nav, montar(TAMANHOS[formato]), TAMANHOS[formato], path.join(pasta, `${String(i + 1).padStart(2, '0')}-${formato}.jpg`));
+        const t = TAMANHOS[formato];
+        await pagina.setViewportSize({ width: t.w, height: t.h });
+        // plano B: dica com foto que não coube vira dica de papel
+        const tentativas = s.tipo === 'dica' ? (s.foto ? ['dica-foto', 'dica-papel'] : ['dica-papel']) : [s.tipo];
+        let erros = [];
+        for (const nome of tentativas) {
+          await pagina.setContent(preencher(templates[nome], variaveis(s, k, slides.length, `${dia}:${tema.id}`, formato, nome !== 'dica-papel')), { waitUntil: 'networkidle' });
+          erros = await pagina.evaluate(() => window.__pronto);
+          if (!erros.length) break;
+          console.log(`  slide ${k + 1} ${formato} (${nome}): ${erros.join(' | ')}${nome === 'dica-foto' ? ' -> plano B (papel)' : ''}`);
+        }
+        if (erros.length) throw new Error(`Slide ${k + 1} (${formato}) reprovou no QA: ${erros.join(' | ')}`);
+        slide[formato] = path.join(pasta, `${String(k + 1).padStart(2, '0')}-${formato}.jpg`);
+        await pagina.screenshot({ path: slide[formato], type: 'jpeg', quality: 90 });
       }
-      slides.push(slide);
+      saida.push(slide);
     }
   } finally {
     await nav.close();
   }
-  return slides;
+  return { slides: saida, gancho };
 }
 
 async function principal() {
   if (process.argv[2] === 'previa') {
-    const tema = TEMAS.find((x) => x.id === process.argv[4]) || temaDoDia(new Date().toISOString().slice(0, 10));
-    console.log(await gerarDicas(tema, new Date().toISOString().slice(0, 10), path.resolve(process.argv[3] || 'saida-dicas')));
-    return console.log(legendaDicas(tema));
+    const dia = process.argv[5] || new Date().toISOString().slice(0, 10);
+    const tema = TEMAS.find((x) => x.id === process.argv[4]) || temaDoDia(dia);
+    const { slides, gancho } = await gerarDicas(tema, dia, path.resolve(process.argv[3] || 'saida-dicas'));
+    console.log(slides);
+    return console.log(legendaDicas(tema, gancho));
   }
   const { banco, subir } = await import('./carrossel.mjs');
   const dia = process.argv[2] || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
   const tema = temaDoDia(dia);
   console.log(`Dicas de ${dia}: ${tema.id}`);
-  const locais = await gerarDicas(tema, dia, path.resolve('saida-carrossel', `${dia}-dicas`));
+  const { slides: locais, gancho } = await gerarDicas(tema, dia, path.resolve('saida-carrossel', `${dia}-dicas`));
   const slides = [];
   for (const l of locais) {
     const slide = {};
     for (const formato of ['feed', 'story']) slide[formato] = await subir(`carrossel/${dia}-dicas/${path.basename(l[formato])}`, l[formato]);
     slides.push(slide);
   }
+  const titulo = gancho.replace(/\*/g, '');
   await banco('carrosseis?on_conflict=dia,turno', {
     method: 'POST',
     headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify({ dia, turno: 'dicas', titulo: tema.gancho, legenda: legendaDicas(tema), slides, itens: [] }),
+    body: JSON.stringify({ dia, turno: 'dicas', titulo, legenda: legendaDicas(tema, gancho), slides, itens: [] }),
   });
-  console.log(`Carrossel de dicas "${tema.gancho}" pronto`);
+  console.log(`Carrossel de dicas "${titulo}" pronto`);
 }
 
 if (process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1]))) await principal();

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<!-- Carrossel de dicas · template "ponte" · FORMATO = feed (1080x1350) | story (1080x1920).
+     Marcadores: ver FINAL-DICAS.md. Texto vai ESCAPADO; *trecho* vira <span class="mk">trecho</span> (1 por slide). -->
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Atkinson+Hyperlegible+Next:wght@400;500;700;800&family=Nanum+Pen+Script&display=block" rel="stylesheet">
+<style>
+:root{--papel:#F7F6F2;--tinta:#1A2233;--cinza:#474E5D;--caneta:#2440A8;--marca:#FFE15A;--azul:#21399A;--top:60px;--bot:64px;--lat:76px}
+body.story{--top:250px;--bot:340px}
+*{margin:0;padding:0;box-sizing:border-box}
+html{width:1080px;overflow:hidden;background:var(--papel)}
+body{position:relative;width:1080px;height:1350px;overflow:hidden;background:var(--papel);color:var(--tinta);
+  font-family:'Atkinson Hyperlegible Next','Atkinson Hyperlegible',sans-serif;-webkit-font-smoothing:antialiased}
+body.story{height:1920px}
+.t{font-family:'Young Serif',serif;font-weight:400;line-height:1.04;letter-spacing:-.5px;text-wrap:balance}
+.x{line-height:1.36;color:var(--cinza);text-wrap:pretty}
+.mao{font-family:'Nanum Pen Script',cursive;color:var(--caneta);line-height:1}
+.mk{background:linear-gradient(176deg,transparent 50%,var(--marca) 50%,var(--marca) 91%,transparent 91%);
+  -webkit-box-decoration-break:clone;box-decoration-break:clone;padding:0 .06em;margin:0 -.03em}
+.ft{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.fibra{position:absolute;inset:0;pointer-events:none;opacity:.05;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .6 0'/%3E%3C/filter%3E%3Crect width='260' height='260' filter='url(%23n)'/%3E%3C/svg%3E")}
+.selo{position:absolute;left:54px;top:calc(var(--top) + 8px);z-index:30;background:#fff;padding:10px 20px 11px;border-radius:3px;transform:rotate(-1.6deg);
+  box-shadow:0 6px 16px -8px rgba(20,25,40,.45),0 0 0 1px rgba(20,25,40,.06);display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+.selo .mao{font-size:56px}
+.selo b{font-size:23px;letter-spacing:.4px;color:var(--tinta)}
+.pag{position:absolute;right:54px;top:calc(var(--top) + 8px);z-index:30;background:#fff;padding:8px 16px;border-radius:3px;font-size:24px;font-weight:700;
+  box-shadow:0 6px 16px -8px rgba(20,25,40,.45),0 0 0 1px rgba(20,25,40,.06)}
+.col{position:absolute;left:var(--lat);right:var(--lat);bottom:var(--bot);display:flex;flex-direction:column}
+.nota{font-size:76px;margin-top:28px;transform-origin:left center;white-space:nowrap}
+.nota:empty{display:none}
+.num{font-family:'Atkinson Hyperlegible Next',sans-serif;font-weight:800;letter-spacing:-.04em;color:var(--caneta);line-height:.78}
+
+.ponte .col{top:calc(var(--top) + 170px)}
+.ponte .kicker{font-size:70px;transform:rotate(-2deg)}
+.ponte .t{margin-top:22px;font-size:116px}
+.story.ponte .t{font-size:128px}
+.ponte .x{margin-top:36px;font-size:48px;max-width:900px}
+.passos{margin-top:56px;font-size:70px;display:flex;flex-wrap:nowrap;white-space:nowrap;gap:14px;align-items:baseline}
+.story .passos{margin-top:90px;font-size:74px}
+.passos:empty{display:none}
+.passos i{font-style:normal;opacity:.7}
+.ponte .rodape{margin-top:auto;padding-top:28px;border-top:2px solid rgba(26,34,51,.18);display:flex;justify-content:space-between;align-items:center;font-size:38px;font-weight:700}
+.ponte .rodape .seta{font-size:50px;color:var(--caneta)}
+</style></head>
+<body class="{{FORMATO}} ponte {{TOM}} {{DESTAQUE}}" data-semente="{{SEMENTE}}">
+<div class="fibra"></div>
+<div class="selo" data-txt><span class="mao">anota aí, mãe</span><b>{{PERFIL}}</b></div>
+<div class="pag" data-txt>{{PAG}}</div>
+<div class="col" data-fit="titulo">
+  <div class="mao kicker" data-txt>{{KICKER}}</div>
+  <div class="t" data-txt data-papel="titulo" data-piso="72">{{TITULO}}</div>
+  <div class="x" data-txt data-papel="corpo" data-piso="40">{{TEXTO}}</div>
+  <div class="mao passos" data-txt data-papel="linha" data-piso="44">{{PASSOS}}</div>
+  <div class="rodape" data-txt><span>{{SETA}}</span><span class="seta">→</span></div>
+</div>
+<script>
+(function(){
+  var QA = window.__QA = [];
+  var story = document.body.classList.contains('story');
+  var H = story ? 1920 : 1350;
+  // aleatório com semente: o rasgo do papel e a inclinação da nota mudam por post, mas são reproduzíveis
+  var seed = Array.from(document.body.dataset.semente || 'x').reduce(function(a,c){return (a*31 + c.charCodeAt(0)) >>> 0;}, 7);
+  function rnd(){ seed = (seed*1664525 + 1013904223) >>> 0; return seed/4294967296; }
+  document.querySelectorAll('[data-rasgo]').forEach(function(e){
+    var alt = +e.dataset.rasgo, pts = [];
+    for (var x = 0; x <= 100; x += 2.5) pts.push(x + '% ' + (rnd()*alt).toFixed(1) + 'px');
+    e.style.clipPath = 'polygon(' + pts.join(',') + ',100% 100%,0% 100%)';
+  });
+  document.querySelectorAll('.nota').forEach(function(e){ e.style.transform = 'rotate(' + (rnd()*2.4 - 1.2).toFixed(2) + 'deg)'; });
+
+  // AUTO-FIT: cada [data-fit] tem altura fixa. Enquanto estourar (altura ou palavra larga demais),
+  // o título desce de 4 em 4px até o piso; depois corpo/itens de 2 em 2px até o piso (corpo nunca < 40px).
+  // Texto curto: o título CRESCE até 1,35x enquanto sobrar 8% de folga. Se não couber nem no piso -> __QA.
+  function px(e){ return parseFloat(e.style.fontSize); }
+  function ajustar(){
+    QA.length = 0;
+    document.querySelectorAll('[data-fit]').forEach(function(col){
+      var els = Array.from(col.querySelectorAll('[data-piso]'));
+      els.forEach(function(e){ if (!e.dataset.base) e.dataset.base = getComputedStyle(e).fontSize; e.style.fontSize = e.dataset.base; });
+      function estoura(){ return col.scrollHeight > col.clientHeight + 1 || els.some(function(e){ return e.scrollWidth > e.clientWidth + 6; }); }
+      els.forEach(function(e){ var g = 60; while (e.scrollWidth > e.clientWidth + 6 && px(e) - 2 >= +e.dataset.piso && g--) e.style.fontSize = (px(e) - 2) + 'px'; });
+      var guard = 200;
+      while (estoura() && guard--) {
+        var tit = els.find(function(e){ return e.dataset.papel === 'titulo' && px(e) - 4 >= +e.dataset.piso; });
+        if (tit) { tit.style.fontSize = (px(tit) - 4) + 'px'; continue; }
+        var outros = els.filter(function(e){ return e.dataset.papel !== 'titulo' && px(e) - 2 >= +e.dataset.piso; });
+        if (!outros.length) break;
+        outros.forEach(function(e){ e.style.fontSize = (px(e) - 2) + 'px'; });
+      }
+      var t = els.find(function(e){ return e.dataset.papel === 'titulo'; });
+      if (t && !estoura() && col.dataset.fit !== 'fixo') {
+        var teto = parseFloat(t.dataset.base) * 1.35;
+        var folga = function(){ var cap = col.clientHeight, b0 = col.style.bottom; col.style.bottom = 'auto'; var h = col.offsetHeight; col.style.bottom = b0; return h <= cap*0.92 && !estoura(); };
+        var g = 40;
+        while (g-- && px(t) + 4 <= teto) { t.style.fontSize = (px(t) + 4) + 'px'; if (!folga()) { t.style.fontSize = (px(t) - 4) + 'px'; break; } }
+      }
+      if (estoura()) QA.push('texto não coube nem no piso');
+      els.forEach(function(e){ if (px(e) < +e.dataset.piso) QA.push('fonte abaixo do piso: ' + px(e) + 'px'); e.dataset.final = px(e); });
+    });
+  }
+  ajustar();
+  window.__pronto = document.fonts.ready.then(function(){
+    return Promise.all(Array.from(document.images).map(function(im){ return im.complete ? 0 : new Promise(function(r){ im.onload = im.onerror = r; }); }));
+  }).then(function(){
+    ajustar();
+    document.querySelectorAll('[data-foto]').forEach(function(im){
+      if (!im.naturalWidth) { QA.push('foto não carregou'); return; }
+      var r = im.getBoundingClientRect(), k = Math.max(r.width/im.naturalWidth, r.height/im.naturalHeight);
+      if (k > 1.4) QA.push('foto ampliada ' + k.toFixed(2) + 'x (máx 1,4)');
+    });
+    document.querySelectorAll('[data-txt]').forEach(function(e){
+      var r = e.getBoundingClientRect();
+      if (!r.width && !r.height) return; // vazio (ex.: dica sem nota) nao conta
+      if (r.right > 1080.5 || r.left < -0.5 || r.bottom > H + 0.5) QA.push('texto saiu da página: "' + e.textContent.trim().slice(0,30) + '"');
+      if (story && (r.top < 249.5 || r.bottom > H - 339.5)) QA.push('texto na zona proibida do story: "' + e.textContent.trim().slice(0,30) + '" (' + Math.round(r.top) + '–' + Math.round(r.bottom) + ')');
+    });
+    return QA;
+  });
+})();
+</script>
+</body></html>

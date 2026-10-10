@@ -1,0 +1,358 @@
+{
+ "_leia": "Etiquetas das fotos neutras. idade: recem-nascido (0-3m) | bebe (3-18m) | crianca | gravida | nenhum. luz: dia | noite. capa: serve de capa (rosto ou mãos visíveis, luz clara, NÃO silhueta). sonoSeguro:false = mostra bebê de bruços, em cama de adulto, com travesseiro ou com adulto dormindo junto: NUNCA é sorteada (contradiz a SBP). evitar = foto gasta (rodada 1 usou em 4-5 protótipos). Todas as fotos ficam nesta pasta (video/fundos).",
+ "fotos": [
+  {
+   "arquivo": "s100.jpg",
+   "idade": "bebe",
+   "luz": "dia",
+   "foco": "50% 28%",
+   "capa": true,
+   "assunto": [
+    "mae",
+    "manha",
+    "colo",
+    "casa"
+   ]
+  },
+  {
+   "arquivo": "s53.jpg",
+   "idade": "bebe",
+   "luz": "dia",
+   "foco": "50% 30%",
+   "capa": true,
+   "assunto": [
+    "mae",
+    "colo",
+    "casa",
+    "irmaos"
+   ]
+  },
+  {
+   "arquivo": "s64.jpg",
+   "idade": "bebe",
+   "luz": "dia",
+   "foco": "50% 40%",
+   "capa": true,
+   "assunto": [
+    "pai",
+    "colo",
+    "casa",
+    "dividir"
+   ]
+  },
+  {
+   "arquivo": "s97.jpg",
+   "idade": "bebe",
+   "luz": "dia",
+   "foco": "50% 30%",
+   "capa": true,
+   "assunto": [
+    "mae",
+    "colo",
+    "cama",
+    "casa"
+   ]
+  },
+  {
+   "arquivo": "s96.jpg",
+   "idade": "bebe",
+   "luz": "dia",
+   "foco": "50% 55%",
+   "capa": false,
+   "assunto": [
+    "mae",
+    "descanso",
+    "casa",
+    "tempo-pra-voce"
+   ]
+  },
+  {
+   "arquivo": "s44.jpg",
+   "idade": "gravida",
+   "luz": "noite",
+   "foco": "35% 50%",
+   "capa": false,
+   "assunto": [
+    "noite",
+    "cama",
+    "preparar",
+    "gravida"
+   ]
+  },
+  {
+   "arquivo": "s46.jpg",
+   "idade": "bebe",
+   "luz": "dia",
+   "foco": "55% 50%",
+   "capa": false,
+   "assunto": [
+    "mae",
+    "cama",
+    "brincar",
+    "descanso",
+    "tempo-pra-voce"
+   ]
+  },
+  {
+   "arquivo": "s43.jpg",
+   "idade": "bebe",
+   "luz": "dia",
+   "foco": "60% 40%",
+   "capa": false,
+   "assunto": [
+    "mae",
+    "cama",
+    "brincar",
+    "tempo-pra-voce"
+   ]
+  },
+  {
+   "arquivo": "s61.jpg",
+   "idade": "bebe",
+   "luz": "dia",
+   "foco": "45% 45%",
+   "capa": false,
+   "assunto": [
+    "pai",
+    "sala",
+    "brincar",
+    "dividir",
+    "ajuda"
+   ]
+  },
+  {
+   "arquivo": "s55.jpg",
+   "idade": "recem-nascido",
+   "luz": "dia",
+   "foco": "40% 50%",
+   "capa": false,
+   "sonoSeguro": true,
+   "assunto": [
+    "sono",
+    "descanso",
+    "berco"
+   ]
+  },
+  {
+   "arquivo": "s56.jpg",
+   "idade": "recem-nascido",
+   "luz": "dia",
+   "foco": "45% 40%",
+   "capa": false,
+   "assunto": [
+    "recem-nascido",
+    "chegada"
+   ]
+  },
+  {
+   "arquivo": "s108.jpg",
+   "idade": "recem-nascido",
+   "luz": "dia",
+   "foco": "55% 55%",
+   "capa": false,
+   "assunto": [
+    "maos",
+    "maternidade",
+    "chegada",
+    "ajuda"
+   ],
+   "evitar": true
+  },
+  {
+   "arquivo": "s121.jpg",
+   "idade": "recem-nascido",
+   "luz": "dia",
+   "foco": "50% 50%",
+   "capa": false,
+   "assunto": [
+    "maos",
+    "chegada",
+    "ajuda"
+   ]
+  },
+  {
+   "arquivo": "n-pezinhos.jpg",
+   "idade": "recem-nascido",
+   "luz": "dia",
+   "foco": "50% 60%",
+   "capa": false,
+   "assunto": [
+    "pes",
+    "chegada"
+   ]
+  },
+  {
+   "arquivo": "n-maozinha-noite.jpg",
+   "idade": "recem-nascido",
+   "luz": "noite",
+   "foco": "55% 55%",
+   "capa": false,
+   "assunto": [
+    "maos",
+    "noite",
+    "madrugada",
+    "dia-dificil"
+   ]
+  },
+  {
+   "arquivo": "n-recem-nascido-touca.jpg",
+   "idade": "recem-nascido",
+   "luz": "dia",
+   "foco": "40% 50%",
+   "capa": false,
+   "assunto": [
+    "recem-nascido",
+    "chegada"
+   ]
+  },
+  {
+   "arquivo": "s63.jpg",
+   "idade": "bebe",
+   "luz": "dia",
+   "foco": "50% 50%",
+   "sonoSeguro": false,
+   "assunto": [
+    "sono"
+   ]
+  },
+  {
+   "arquivo": "s75.jpg",
+   "idade": "recem-nascido",
+   "luz": "noite",
+   "foco": "60% 60%",
+   "sonoSeguro": false,
+   "assunto": [
+    "sono"
+   ]
+  },
+  {
+   "arquivo": "n-bebe-dormindo-branco.jpg",
+   "idade": "bebe",
+   "luz": "dia",
+   "sonoSeguro": false,
+   "assunto": [
+    "sono"
+   ]
+  },
+  {
+   "arquivo": "n-bebe-dormindo-lado.jpg",
+   "idade": "recem-nascido",
+   "luz": "dia",
+   "sonoSeguro": false,
+   "assunto": [
+    "sono"
+   ]
+  },
+  {
+   "arquivo": "n-mae-dormindo-bebe.jpg",
+   "idade": "bebe",
+   "luz": "noite",
+   "sonoSeguro": false,
+   "assunto": [
+    "sono"
+   ]
+  },
+  {
+   "arquivo": "07.jpg",
+   "idade": "bebe",
+   "luz": "dia",
+   "foco": "50% 30%",
+   "capa": true,
+   "assunto": [
+    "mae",
+    "colo",
+    "casa",
+    "irmaos"
+   ]
+  },
+  {
+   "arquivo": "01.jpg",
+   "idade": "bebe",
+   "luz": "dia",
+   "foco": "50% 40%",
+   "capa": true,
+   "assunto": [
+    "mae",
+    "casa",
+    "brincar"
+   ]
+  },
+  {
+   "arquivo": "08.jpg",
+   "idade": "recem-nascido",
+   "luz": "dia",
+   "foco": "50% 50%",
+   "capa": false,
+   "assunto": [
+    "pes",
+    "maos",
+    "chegada"
+   ]
+  },
+  {
+   "arquivo": "10.jpg",
+   "idade": "recem-nascido",
+   "luz": "dia",
+   "foco": "50% 50%",
+   "capa": false,
+   "assunto": [
+    "maos",
+    "chegada"
+   ]
+  },
+  {
+   "arquivo": "27.jpg",
+   "idade": "recem-nascido",
+   "luz": "dia",
+   "foco": "50% 50%",
+   "capa": false,
+   "assunto": [
+    "pes",
+    "chegada"
+   ]
+  },
+  {
+   "arquivo": "25.jpg",
+   "idade": "bebe",
+   "luz": "dia",
+   "foco": "50% 40%",
+   "capa": false,
+   "assunto": [
+    "mae",
+    "passeio"
+   ]
+  },
+  {
+   "arquivo": "09.jpg",
+   "idade": "recem-nascido",
+   "luz": "dia",
+   "foco": "50% 40%",
+   "capa": false,
+   "evitar": true,
+   "assunto": [
+    "pai",
+    "colo"
+   ]
+  },
+  {
+   "arquivo": "38.jpg",
+   "idade": "bebe",
+   "luz": "noite",
+   "capa": false,
+   "evitar": true,
+   "assunto": [
+    "silhueta"
+   ]
+  },
+  {
+   "arquivo": "32.jpg",
+   "idade": "nenhum",
+   "luz": "dia",
+   "capa": false,
+   "evitar": true,
+   "assunto": [
+    "quarto"
+   ]
+  }
+ ]
+}
