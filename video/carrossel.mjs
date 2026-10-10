@@ -11,6 +11,7 @@ import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { CORES, TAMANHOS, brl, chromium, esc, fotoEmbutida, renderizar } from './gerar-arte.mjs';
 import { nomeCurto } from './roteiro.mjs';
+import { NBCAL, simplificar } from '../supabase/functions/_shared/shopee.js';
 import { historiaDoDia, passos } from './historia.mjs';
 import { storyAnimado } from './story-animado.mjs';
 
@@ -55,7 +56,7 @@ async function escolher(turno) {
   for (const dias of [2, 4, 7, 14]) {
     const desde = new Date(Date.now() - dias * 86400e3).toISOString();
     const enviadas = await banco(`ofertas?select=${CAMPOS}&status=eq.enviada&enviada_em=gte.${desde}&imagem=not.is.null&categoria=not.is.null&order=score.desc&limit=400`);
-    const candidatas = enviadas.filter((o) => !usados.has(o.item_id) && o.preco > 0).sort(TURNOS[turno].ordem);
+    const candidatas = enviadas.filter((o) => !usados.has(o.item_id) && o.preco > 0 && !NBCAL.test(simplificar(o.nome))).sort(TURNOS[turno].ordem);
     const escolhidas = [];
     const porCategoria = {};
     for (const o of candidatas) {

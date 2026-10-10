@@ -112,6 +112,12 @@ const escapar = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
  */
 export const temTermo = (nome, termo) => new RegExp(`(^|[^a-z0-9])${escapar(simplificar(termo))}`).test(nome);
 
+/**
+ * Lei 11.265/2006 (NBCAL) proibe promover mamadeira, bico, chupeta, protetor de mamilo e leite/formula infantil.
+ * Vale sempre, fora da config (acessorio de chupeta e escova de mamadeira tambem saem, por cautela).
+ */
+export const NBCAL = /(^|[^a-z0-9])(mamadeiras?|chupetas?|bicos?|protetor(es)? de mamilo|leite em po|leites? infant|formula infantil|composto lacteo)([^a-z0-9]|$)/;
+
 /** Motivo de a oferta ficar de fora (vai pro log da coleta), ou null se passou. */
 export function motivoReprovacao(linha, filtros) {
   if (!linha.link || !linha.preco) return 'sem link ou preco';
@@ -120,6 +126,7 @@ export function motivoReprovacao(linha, filtros) {
   const nome = simplificar(linha.nome);
   const bloqueadas = filtros.palavrasBloqueadas || [];
   if (bloqueadas.some((p) => temTermo(nome, p))) return 'palavra bloqueada';
+  if (NBCAL.test(nome)) return 'lei 11.265 (mamadeira, bico, chupeta, leite)';
 
   // nicho: cada grupo de "exigir" precisa ter pelo menos 1 termo no nome.
   // Ex.: roupa = [["body","calca","macacao"...], ["bebe","infantil","rn"...]] -> "Body manga longa bebe" passa,
