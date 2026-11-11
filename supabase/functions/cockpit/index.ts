@@ -5,6 +5,7 @@ import { carregarConfig } from '../_shared/config.js';
 import { agoraBrasilia } from '../_shared/selecao.js';
 import { acaoNoBanco, canal, chamar, gravarSegredo, lerSegredos, ofertaPorId, pausas } from '../_shared/db.js';
 import { dispararNoCanal } from '../_shared/disparo.js';
+import { conectarAppML, listaML, previaML, salvarML, statusML } from '../_shared/mercadolivre.js';
 import { coletar } from '../_shared/coleta.js';
 import { sincronizarVendas } from '../_shared/vendas.js';
 import { medirMembros } from '../_shared/membros.js';
@@ -82,6 +83,18 @@ servirCockpit(
       const [ofertas, porKeyword] = await Promise.all([chamar(q), chamar('cockpit_keywords?select=keyword,pendentes,enviadas_7d,retornadas_7d,aprovadas_7d,erros_7d,ultima_coleta')])
       return { ofertas, porKeyword }
     },
+
+    // ---------------------------------------------------------------- Mercado Livre (2o distribuidor)
+    // o link de afiliado vem do painel do ML (colado na tela); o app do ML, se conectado, completa nome/preco/foto
+    async ml_painel() {
+      const [status, ofertas] = await Promise.all([statusML(), listaML()])
+      return { ...status, ofertas }
+    },
+    ml_previa: ({ texto }: { texto: string }) => previaML(texto),
+    async ml_salvar({ itens }: { itens: unknown[] }) {
+      return salvarML(await carregarConfig(), itens)
+    },
+    ml_conectar: ({ client_id, client_secret }: { client_id: string; client_secret: string }) => conectarAppML({ client_id, client_secret }),
 
     reprovacoes: () => chamar('cockpit_reprovacoes?select=*&order=quantidade.desc'),
     bloqueios: () => chamar('bloqueios?order=criado_em.desc'),

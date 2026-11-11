@@ -53,6 +53,12 @@ export function montarMensagem(oferta, formato = 'html') {
     linhas.push(`⭐ ${oferta.nota} · ${oferta.vendas}+ vendidos`);
   }
 
+  // 2o distribuidor: avisa onde a compra acontece (quem clica espera abrir o app certo)
+  if (/^MLB/i.test(String(oferta.item_id || ''))) {
+    linhas.push('');
+    linhas.push('🛒 No Mercado Livre');
+  }
+
   linhas.push('');
   linhas.push(wa ? `👉 Veja mais detalhes: ${oferta.link}` : `<a href="${oferta.link}">Veja mais detalhes</a>`);
 

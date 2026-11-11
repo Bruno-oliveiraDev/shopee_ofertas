@@ -4,6 +4,7 @@ import { postarOfertaWhatsApp, postarTextoWhatsApp } from './whatsapp.js';
 import { agoraBrasilia, assinatura, campanhaAtiva, categoriaDe, escolher, filtrosDe, parecidos, todasKeywords } from './selecao.js';
 import { motivoReprovacao } from './shopee.js';
 import { linkComSubId, subIdsDoPost } from './vendas.js';
+import { ehML } from './mercadolivre.js';
 
 const pausa = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -12,6 +13,15 @@ const TOP_DO_DIA = 5;
 const JANELA_SEM_REPETIR_MIN = 4;
 // produto parecido com um que saiu no canal nesse periodo nao sai de novo (outro vendedor, mesmo produto)
 const DIAS_SEM_REPETIR_PRODUTO = 5;
+// Mercado Livre (2o distribuidor): 1 post a cada N do canal, se tiver produto do ML na fila (config mercadoLivre.aCadaPosts)
+const ML_A_CADA_POSTS = 3;
+
+/** O ML entra quando os ultimos N-1 posts do canal nao foram do ML (historico: mais novo primeiro). */
+function vezDoML(cfg, historico) {
+  const aCada = Math.max(2, Number(cfg.mercadoLivre?.aCadaPosts) || ML_A_CADA_POSTS);
+  const ultimoML = historico.findIndex((e) => ehML(e.item_id));
+  return ultimoML === -1 || ultimoML >= aCada - 1;
+}
 
 /** "08:05" do horario atual, arredondado pra baixo de 5 em 5 min (o pg_cron pode atrasar uns segundos). */
 export function horarioDaRodada(agora = agoraBrasilia()) {
@@ -22,7 +32,8 @@ export function horarioDaRodada(agora = agoraBrasilia()) {
 /** Troca o link de cada oferta pelo link com subId deste canal/horario (a venda volta dizendo de onde veio). */
 async function comSubId(cfg, canal, ofertas, agora) {
   const horario = horarioDaRodada(agora);
-  for (const o of ofertas) o.link = await linkComSubId(o, subIdsDoPost(canal, o.categoria ?? categoriaDe(cfg, o.keyword), horario));
+  // link do Mercado Livre e o que o Bruno gerou no painel de afiliados: vai como esta
+  for (const o of ofertas) if (!ehML(o.item_id)) o.link = await linkComSubId(o, subIdsDoPost(canal, o.categoria ?? categoriaDe(cfg, o.keyword), horario));
 }
 
 const formatoDo = (canal) => (canal.tipo === 'whatsapp' ? 'whatsapp' : 'html');
@@ -101,7 +112,11 @@ export async function dispararNoCanal(cfg, canal, { teste = false, origem = 'age
 
   const todas = await candidatasDoCanal(canal.id, todasKeywords(cfg), cfg.disparo?.validadeEmDias ?? 3);
   // a fila pode ter oferta coletada antes de a regra mudar: passa de novo pelo filtro (nicho, pet, nota...)
-  const doNicho = todas.filter((o) => o.prioridade > 0 || motivoReprovacao(o, filtrosDe(cfg, o.keyword)) === null);
+  // Mercado Livre foi escolhido a dedo no painel: so passa pelas palavras bloqueadas e pela Lei 11.265
+  const doNicho = todas.filter((o) =>
+    o.prioridade > 0 ||
+    motivoReprovacao(o, ehML(o.item_id) ? { palavrasBloqueadas: filtrosDe(cfg, o.keyword).palavrasBloqueadas } : filtrosDe(cfg, o.keyword)) === null
+  );
   base.fila = doNicho.length;
 
   if (doNicho.length === 0) {
@@ -162,8 +177,12 @@ export async function dispararNoCanal(cfg, canal, { teste = false, origem = 'age
   const quantidade = canal.ofertas_por_rodada || 1;
   // fixadas no cockpit (prioridade) passam na frente da escolha automatica
   const fixadas = candidatas.filter((o) => o.prioridade > 0).slice(0, quantidade);
-  const resto = candidatas.filter((o) => !(o.prioridade > 0));
-  const fila = [...fixadas, ...escolher(cfg, resto, categoriasRecentes, quantidade - fixadas.length, agora)];
+  // Mercado Livre entra no rodizio (1 a cada N posts); fora da vez dele, so se nao sobrou Shopee
+  const doML = candidatas.filter((o) => !(o.prioridade > 0) && ehML(o.item_id));
+  const daShopee = candidatas.filter((o) => !(o.prioridade > 0) && !ehML(o.item_id));
+  const vezML = fixadas.length < quantidade && doML.length > 0 && (vezDoML(cfg, historico) || daShopee.length === 0);
+  const ml = vezML ? escolher(cfg, doML, categoriasRecentes, 1, agora) : [];
+  const fila = [...fixadas, ...ml, ...escolher(cfg, daShopee.length ? daShopee : doML.filter((o) => !ml.includes(o)), categoriasRecentes, quantidade - fixadas.length - ml.length, agora)];
 
   // a categoria decide se o preco por unidade aparece (brinquedo nao tem)
   for (const o of fila) o.categoria = categoriaDe(cfg, o.keyword);

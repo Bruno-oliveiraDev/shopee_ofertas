@@ -70,7 +70,7 @@ export async function coletar(cfg, { parte = 1, de = 1 } = {}) {
   const unicas = [...new Map(candidatas.map((o) => [o.item_id, o])).values()];
 
   const fila = await abastecerFila(unicas);
-  await expirarAntigas(cfg.disparo.validadeEmDias);
+  await expirarAntigas(cfg.disparo.validadeEmDias, cfg.mercadoLivre?.validadeEmDias ?? 7);
 
   log.push(`Candidatas: ${unicas.length} | Novas: ${fila.novas} | Renovadas: ${fila.renovadas}`);
 

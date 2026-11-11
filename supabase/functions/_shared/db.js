@@ -71,15 +71,17 @@ export function marcarComoFalha(itemId, motivo) {
   });
 }
 
-/** Sai da fila o que a Shopee parou de mostrar ha X dias (o preco guardado ja nao e confiavel). */
-export function expirarAntigas(dias) {
+/**
+ * Sai da fila o que a Shopee parou de mostrar ha X dias (o preco guardado ja nao e confiavel).
+ * Mercado Livre (item_id MLB...) nunca e "visto de novo" pela coleta: tem prazo proprio, contado de quando foi colado.
+ */
+export async function expirarAntigas(dias, diasML = 7) {
   const limite = new Date(Date.now() - dias * 86400000).toISOString();
+  const limiteML = new Date(Date.now() - diasML * 86400000).toISOString();
+  const patch = { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ status: 'expirada' }) };
 
-  return chamar(`ofertas?status=eq.pendente&visto_em=lt.${limite}`, {
-    method: 'PATCH',
-    headers: { Prefer: 'return=minimal' },
-    body: JSON.stringify({ status: 'expirada' }),
-  });
+  await chamar(`ofertas?status=eq.pendente&item_id=not.like.MLB*&visto_em=lt.${limite}`, patch);
+  await chamar(`ofertas?status=eq.pendente&item_id=like.MLB*&visto_em=lt.${limiteML}`, patch);
 }
 
 // ---------------------------------------------------------------------------
